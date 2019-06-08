@@ -1,16 +1,23 @@
 #!/bin/bash
 #Utilites per LAS - Lorenzo Amorosa
 
-############################ SCP ########################################
+############################-COMMANDS-########################################
 
 #copia file remota, inserire nomefile e valore X (1 Client, 2 Router, 3 Server)
 scp nomefile las@192.168.56.20X:
+seq first | first last | first increment last
 
-############################ ROOT #######################################
+############################-AT-########################################
+
+#due comandi tra mezz'ora
+echo "/root/ldapmod.sh $UTENTE status closed ; /root/ldapmod.sh $UTENTE used 0" | at now + 30 minutes
+
+############################-ROOT-#######################################
 
 comandi di root: iptables, ss, tcpdump
+#script da chiamare supposti in /root/
 
-############################ CHECK ######################################
+############################-CHECK-######################################
 
 #Controllo parametri
 if [[ $# -ne "3" ]]; then 
@@ -18,22 +25,24 @@ if [[ $# -ne "3" ]]; then
 	exit 1
 else
 	# $1 ultimo byte ip tra 1-100
-	if ! echo "$1" | egrep '^10.1.1.([1-9][0-9]?|100)$' ; then
+	if ! echo "$1" | egrep "^10\.1\.1\.([1-9][0-9]?|100)$" ; then
 		echo "$1 non e' un IP valido di client"
 		exit 2
 	fi
 	#Controllo che $2 sia un numero intero
-	if [[ "$2" == *[!0-9]* ]]; then
+	if ! [[ "$2" =~ ^[0-9]+$ ]]; then
 		echo "$2 is not a number"
 		exit 3
 	fi
-	if [[ ! "$3" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$ ]] ; then
+	#notare che non sono ammessi indirizzi broadcast (non ammesso valore 255)
+	#occhio agli indirizzi che terminano per 0, basta spostare il '?' dopo [0-9]
+	if ! [[ "$3" =~ ^(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$ ]] ; then
 		echo "$3 non e' un IP valido"
 		exit 4
 	fi
 fi
 
-########################## LDAP ########################################
+##########################-LDAP-########################################
 
 #avvio demone ldap
 sudo systemctl restart slapd
@@ -56,7 +65,7 @@ ldapsearch -x -h 127.0.0.1 -b "dc=labammsis" -s one 'status=open'
 #Visualizzare solo un attributo di una entry (output NON pulito)
 ldapsearch -x -h 127.0.0.1 -b "user=pippo,dc=labammsis" -s one status
 
-########################## LDAP ########################################
+##########################-LDAP-########################################
 
 # Legge uno specifico attributo di una entry ldap
 # ARGOMENTI : $1 Distinguished Name , $2 Nome attributo, $3 ip server ldap
@@ -71,11 +80,16 @@ function readldapattr() {
 	fi
 }
 # Esempio d ’ uso :
-ATTRVAL=$(readldapattr "ind=10.9.9.1,ind=10.1.1.1,dc=labammsis" "cnt" "127.0.0.1")
+ATTRVAL=$(readldapattr "user=pippo,dc=labammsis" "status" "127.0.0.1")
 echo "RETURN VALUE: $?"
 echo "ATTR VALUE: $ATTRVAL"
 
-########################## LDIF ########################################
+#leggere piu' attributi con 1 unico ldapsearch (ORDINE ALFABETICO ATTRIBUTI)
+ldapsearch -x -h localhost -b "user=pippo,dc=labammsis" -s base | sort | egrep "^used :|^limit :" | awk '{ print $2 }' > /tmp/ldap$$
+LIM=$(head -1 /tmp/ldap$$)
+USE=$(tail -1 /tmp/ldap$$)
+
+##########################-LDIF-########################################
 
 #Schema ldif, importante non prendere gli spazi
 dn: cn=data,cn=schema,cn=config
@@ -111,7 +125,7 @@ olcObjectClasses: ( 1000.2.1.1 NAME 'data'
   MUST ( user $ limit $ used $ status $ update )
   STRUCTURAL )
 
-########################## LDIF ########################################
+##########################-LDIF-########################################
 
 # Definizione di una entry per lo schema data (file entry.ldif)
 dn: user=pippo,dc=labammsis
@@ -122,7 +136,7 @@ used: 0
 status: closed
 limit: 200
 
-########################## LDIF ########################################
+##########################-LDIF-########################################
 
 # File differenze.ldif che modifica l’attributo used dell’entry
 # definita in precedenza con dn: user=pippo,dc=labammsis
@@ -131,11 +145,11 @@ changetype: modify
 replace: used
 used: 50
 
-########################## LDAP ########################################
+##########################-LDAP-########################################
 
 # Modifica uno specifico attributo di una entry ldap
-# ARGOMENTI : $1 Distinguished Name , $2 Nome attributo , $3 Nuovo valore, $4 host server ldap
-# RETURN : 0 se l ’ attributo e ’ stato modificato , 1 altrimenti
+# ARGOMENTI: $1 Distinguished Name, $2 Nome attributo, $3 Nuovo valore, $4 host server ldap
+# RETURN: 0 se l'attributo e'stato modificato, 1 altrimenti
 function modldapattr() {
 	echo -e "dn: $1\nchangetype: modify\nreplace: $2\n$2: $3" | ldapmodify -x -h "$4" -D "cn=admin,dc=labammsis" -w admin
 	return $?
@@ -144,12 +158,25 @@ function modldapattr() {
 modldapattr "ind=10.9.9.1,ind=10.1.1.1,dc=labammsis" "cnt" "2" "127.0.0.1"
 echo "RETURN VALUE: $?"
 
-########################## LOG #########################################
+##########################-LOG-#########################################
 
 #Scrivere un messaggio al logger
-logger -p local4.info "___$(hostname -I | egrep -o '10\.1\.1\.')___$(whoami)___"
+logger -p local4.info ___$(hostname -I | egrep -o "10\.1\.1\.([1-9][0-9]?|100)")___$(whoami)___
+#formato:
+#Jun  7 14:29:40 Router las: ___prova1___ciao___
+#facility: auth, ftp, news, authpriv, kern, syslog, cron, lpr, user, daemon, mail, uucp, local0 .. local7
+#priority: emerg, alert, crit, err, warning, notice, info, debug
 
-########################## LOG #########################################
+#leggere da /var/log/reqs righe con formato
+#Jun  7 14:29:40 Router las: ___prova1___ciao___
+tail --pid=$$ -f /var/log/reqs | while read mm gg hh host user msg ; do
+	IP=$(echo $msg | awk -F '___' '{ print $2 }')
+	UTENTE=$(echo $msg | awk -F '___' '{ print $3 }')
+	echo $IP
+	echo $UTENTE
+done
+
+##########################-LOG-#########################################
 
 #Come configurare rsyslog
 #/etc/rsyslog.d/esame.conf
@@ -162,7 +189,7 @@ logger -p local4.info "___$(hostname -I | egrep -o '10\.1\.1\.')___$(whoami)___"
 #Eseguire il comando
 #sudo systemtctl restart rsyslog
 
-########################## SNMP #########################################
+##########################-SNMP-#########################################
 
 #snmpget esame
 snmpget -v 1 -c public 10.1.1.1 'NET-SNMP-EXTEND-MIB::nsExtendOutputFull."esame"' | awk -F ' = STRING: ' '{ print $2 }'
@@ -205,7 +232,7 @@ ID=$(snmpwalk -v 1 -c public localhost "UCD-SNMP-MIB::prNames" | grep mountd | a
 # Utilizzo l'id per ottenere il conteggio, verifico cosi' se il processo e' in esecuzione su localhost
 snmpget -v 1 -c public localhost "UCD-SNMP-MIB::prCount.$ID" | awk -F "INTEGER: " '{ print $2 }'
 
-########################## SNMP #########################################
+##########################-SNMP-#########################################
 
 # Ottiene il numero di istanze di un processo registrato tramite SNMP
 # ARGOMENTI : $1 nome processo , $2 indirizzo macchina
@@ -219,12 +246,12 @@ function getProcessCount{
 NUMERO=$(getProcessCount "rsyslogd" "10.9.9.1" )
 echo $NUMERO
 
-########################## IPTABLES #########################################
+##########################-IPTABLES-#########################################
 
 #Le regole iptables vengono resettate allo spegnimento della macchina, se si vogliono rendere persistenti
 #è quindi importante aggiungerle al file .bashrc
-# Visualizza le configurazioni di iptables (tabella filter)
-iptables -vnL
+# Visualizza le configurazioni di iptables (tabella filter), -x per valori numerici esatti
+iptables -vnxL
 # Visualizza una singola chain
 iptables -L <chain>
 #Policy:
@@ -252,7 +279,7 @@ iptables -F
 -p tcp # Solo pacchetti TCP
 -p udp # Solo pacchetti UDP [anche icmp]
 #Si puo' specificare il negato di un'opzione
--s ! <address>[/<netmask>]
+! -s <address>[/<netmask>]
 # Specificando il protocollo tcp o udp , si possono selezionare le porte:
 --dport <prt> # Pacchetti con porta di destinazione == <prt>
 --sport <prt> # Pacchetti con porta di partenza == <prt>
@@ -263,6 +290,9 @@ iptables -F
 #ARGOMENTI: $1 A oppure D per aggiungere o togliere la regola, $2 indirizzo sorgente, ma da settare a seconda dei casi
 function gestisciRegola() {
 	iptables -"$1" INPUT -s "$2" -j ACCEPT
+	#iptables -"$1" FORWARD -i eth2 -o eth1 -s "$2" ! -d 10.1.1.0/24 -j ACCEPT
+	#iptables -"$1" FORWARD -i eth1 -o eth2 ! -s 10.1.1.0/24 -d "$2" -j ACCEPT -m state --state ESTABLISHED
+	#iptables -t nat -"$1" POSTROUTING -i eth2 -o eth1 -s "$2" ! -d 10.1.1.0/24 -j SNAT --to-source 10.9.9.250
 }
 
 # Esempio d'uso
@@ -271,20 +301,88 @@ gestisciRegola A 10.1.1.1
 # Elimino la regola
 gestisciRegola D 10.1.1.1
 
-########################## IPTABLES #########################################
+#Inserisce una regola che logga i pacchetti in transito nella chain specificata con prefisso e livello di log specificati
+#I log hanno facility=kernel, --log-level=debug => i log salvati con livello kernel.debug 
+iptables -I <chain> <options> -j LOG --log-prefix="___prefisso___" --log-level=<livello_log>
+# Logga l'inizio di ogni connessione inoltrata da 10.1.1.1 a 10.9.9.1 con livello debug e prefisso ___NEWCON___
+iptables -I FORWARD -i eth2 -s 10.1.1.1 -d 10.9.9.1 -p tcp --tcp-flags SYN SYN -j LOG --log-prefix "___NEWCON___" --log-level=debug
+# Logga la fine di ogni connessione inoltrata da 10.1.1.1 a 10.9.9.1 con livello debug e prefisso ___ENDCON___
+iptables -I FORWARD -i eth2 -s 10.1.1.1 -d 10.9.9.1 -p tcp --tcp-flags FIN FIN -j LOG --log-prefix "___ENDCON___" --log-level=debug
 
+##########################-IPTABLES DEFAULT-#####################################
+
+#data una coppia di indirizzi, un'interfaccia e una porta si abilitano le comunicazioni
+#in entrambe le direzioni, entrambi i componenti sono sia server che client
+function confTotallyBidir(){
+	# confTotallyBidir interface ip1 ip2 port
+    	# ip2 come server di ip1
+	iptables -I INPUT -i $1 -s $2 -d $3 -p tcp --dport $4 -j ACCEPT
+    	iptables -I OUTPUT -o $1 -d $2 -s $3 -p tcp --sport $4 -m state --state ESTABLISHED -j ACCEPT
+	# ip2 come client di ip1
+   	iptables -I INPUT -i $1 -s $2 -d $3 -p tcp --sport $4 -m state --state ESTABLISHED -j ACCEPT
+    	iptables -I OUTPUT -o $1 -d $2 -s $3 -p tcp --dport $4 -j ACCEPT
+    	# ip1 come server di ip2
+  	iptables -I INPUT -i $1 -s $3 -d $2 -p tcp --dport $4 -j ACCEPT
+    	iptables -I OUTPUT -o $1 -d $3 -s $2 -p tcp --sport $4 -m state --state ESTABLISHED -j ACCEPT
+	# ip1 come client di ip2
+   	iptables -I INPUT -i $1 -s $3 -d $2 -p tcp --sport $4 -m state --state ESTABLISHED -j ACCEPT
+   	iptables -I OUTPUT -o $1 -d $3 -s $2 -p tcp --dport $4 -j ACCEPT
+}
+
+#data una coppia di indirizzi, un'interfaccia e una porta si abilitano le comunicazioni
+#rendendo ip1 client di ip2, ip2 server di ip1
+function confTotallyMono(){
+	# confConnMono interface ip1 ip2 port
+    	# ip2 come server di ip1
+	iptables -I INPUT -i $1 -s $2 -d $3 -p tcp --dport $4 -j ACCEPT
+    	iptables -I OUTPUT -o $1 -d $2 -s $3 -p tcp --sport $4 -m state --state ESTABLISHED -j ACCEPT
+	# ip1 come client di ip2
+   	iptables -I INPUT -i $1 -s $3 -d $2 -p tcp --sport $4 -m state --state ESTABLISHED -j ACCEPT
+   	iptables -I OUTPUT -o $1 -d $3 -s $2 -p tcp --dport $4 -j ACCEPT
+}
+
+#data una coppia di indirizzi, un'interfaccia e una porta si abilitano le comunicazioni
+#rendendo ip2 server di ip1
+function confMono(){
+	# confMono interface ip1 ip2 port proto
+	iptables -I INPUT -i $1 -s $2 -d $3 -p $5 --dport $4 -j ACCEPT
+    	iptables -I OUTPUT -o $1 -d $2 -s $3 -p $5 --sport $4 -m state --state ESTABLISHED -j ACCEPT
+}
+
+#scarto qualsiasi configurazione precedente
+iptables -F INPUT
+iptables -F OUTPUT
+iptables -F FORWARD
+#confTotallyBidir
+confTotallyBidir eth1 10.9.9.254 10.9.9.253 22
+confTotallyBidir eth2 10.1.1.254 10.1.1.253 22
+confTotallyBidir eth3 192.168.56.254 192.168.56.253 22
+confTotallyBidir eth3 192.168.56.254 192.168.56.253 389
+# LDAP client-router (router server ldap)
+confMono eth2 10.1.1.0/24 10.1.1.250 389 tcp
+iptables -I INPUT -i eth2 -p tcp -s 10.1.1.0/24 -d 10.1.1.250 --dport 389 -j ACCEPT
+iptables -I OUTPUT -o eth2 -p tcp -d 10.1.1.0/24 -s 10.1.1.250 --sport 389 -m state --state ESTABLISHED -j ACCEPT
+# rsyslog client-router (log registrati su router)
+confMono eth2 10.1.1.0/24 10.1.1.254 514 udp
+iptables -I INPUT -i eth2 -p udp -s 10.1.1.0/24 -d 10.1.1.254 --dport 514 -j ACCEPT
+iptables -I OUTPUT -o eth2 -p udp -d 10.1.1.0/24 -s 10.1.1.254 --sport 514 -m state --state ESTABLISHED -j ACCEPT
+# SNMP router-client (demone snmp su client)
+confMono eth2 10.1.1.254 10.1.1.0/24 161 udp
+iptables -I OUTPUT -o eth2 -p udp -d 10.1.1.0/24 -s 10.1.1.254 --dport 161 -j ACCEPT
+iptables -I INPUT -i eth2 -p udp -s 10.1.1.0/24 -d 10.1.1.254 --sport 161 -m state --state ESTABLISHED -j ACCEPT
 # Accetta tutti i pacchetti dell'interfaccia di loopback
 iptables -I INPUT -i lo -s 127.0.0.0/8 -j ACCEPT
 iptables -I OUTPUT -o lo -d 127.0.0.0/8 -j ACCEPT
-# Consenti le connessioni SSH ( in questo caso verso router )
-iptables -I INPUT -i eth3 -s 192.168.56.1 -d 192.168.56.202 -p tcp --dport 22 -j ACCEPT
-iptables -I OUTPUT -o eth3 -d 192.168.56.1 -s 192.168.56.202 -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
 # Imposto policy di default
 iptables -P INPUT DROP
 iptables -P OUTPUT DROP
 iptables -P FORWARD DROP
 
-########################## IPTABLES NAT #########################################
+# Consenti le connessioni SSH ( in questo caso verso router ) PER DEBUG
+iptables -I INPUT -i eth3 -s 192.168.56.1 -d 192.168.56.202 -p tcp --dport 22 -j ACCEPT
+iptables -I OUTPUT -o eth3 -d 192.168.56.1 -s 192.168.56.202 -p tcp --sport 22 -m state --state ESTABLISHED -j ACCEPT
+
+##########################-IPTABLES NAT-#########################################
 
 # Visualizza le configurazioni di iptables (tabella nat)
 iptables -t nat -vnL
@@ -305,10 +403,45 @@ iptables -t nat -I <chain> <options> -j <policy>
 # Rimuovo una regola ( DELETE )
 iptables -t nat -D <chain> <options> -j <policy>
 
+#Esempi:
+# Intercetta le connessioni SSH da Client a Router e le ridirige a Server
+iptables -t nat -A PREROUTING -i eth2 -s 10.1.1.1 -d 10.1.1.254 -p tcp --dport 22 -j DNAT --to-dest 10.9.9.1
+# Espone le connessioni dal Client al Server come se venissero dal Router stesso
+iptables -t nat -A POSTROUTING -o eth1 -s 10.1.1.1 -d 10.9.9.1 -j SNAT --to-source 10.9.9.254
 
+##########################-IPTABLES CHAIN/STORE-#####################################
 
+# Crea la chain PIPPO
+iptables -N PIPPO
+# Inserisco una regola all'interno di PIPPO che faccia direttamente il RETURN (ovvero ritorni alla chain che l'ha invocata)
+iptables -I PIPPO -j RETURN
+# Elimino tutte le regole all'interno di PIPPO ( FLUSH )
+iptables -F PIPPO
+# Elimino la chain PIPPO
+iptables -X PIPPO
 
+# Salva la configurazione corrente sul file
+iptables-save > /tmp/output
+# Ripristina la configurazione salvata
+iptables-restore < /tmp/output
 
+############################-CRON-###################################################
+
+#Esegue il comando ogni 5 minuti
+# */5 * * * * /root/traffic.sh
+#Esegue il comando da lun a ven alle 22
+# 00 22 * * 1-5 /root/traffic.sh
+# configuro cron per l'esecuzione
+/usr/bin/crontab -l > /tmp/traffic.cron.$$
+echo "*/5 * * * * /root/traffic.sh" >> /tmp/traffic.cron.$$
+/usr/bin/crontab /tmp/traffic.cron.$$
+/bin/rm -f /tmp/traffic.cron.$$
+
+if /usr/bin/tty > /dev/null ; then
+	# invocato da terminale, controllo parametri
+else
+	# Invocato da cron
+fi
 
 
 
