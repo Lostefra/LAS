@@ -3,9 +3,78 @@
 
 ############################-COMMANDS-########################################
 
-#copia file remota, inserire nomefile e valore X (1 Client, 2 Router, 3 Server)
+#copia file da locale a remoto, inserire nomefile e valore X (1 Client, 2 Router, 3 Server) (-r per dir ricorsive)
 scp nomefile las@192.168.56.20X:
+#copia file da remoto a locale, inserire nomefile e valore X (1 Client, 2 Router, 3 Server) (-r per dir ricorsive)
+scp las@192.168.56.20X:nomefile nomedestinazione
+#numeri da first a last
 seq first | first last | first increment last
+#leggere ininterrottamente da file
+tail --pid=$$ -f /var/log/reqs | while read var1 var2 ; do  echo $var1; done
+#grep quiet, no output, exit code 0 se trova match
+grep -q <pattern> <file>
+#grep case insensitive
+grep -i <pattern> <file>
+#grep inverse match
+grep -v <pattern> <file>
+#grep only exact word
+grep -w <pattern> <file>
+#grep print number of matching lines
+grep -c <pattern> <file>
+#restituisce i nomi dei file nei quali la riga cercata e' comparsa
+grep -l <pattern> file.a file.b file.c
+grep -l <pattern> file.*
+#restituisce anche il numero di linea matchata
+grep -n <pattern> <file>
+#stampare un solo campo (es. user) di un solo processo
+ps -C connect.sh -o user
+#selezionare con ps processo con pid specifico
+ps -p 583
+#ordina alfabeticamente
+sort
+#ordina numericamente
+sort -n
+#elimina duplicati
+sort -u
+#inverte ordine
+sort -r
+#ordina elenco ip address
+sort -t. -k 1,1n -k 2,2n -k 3,3n -k 4,4n
+#sed s/vecchio_pattern/nuovo_valore/
+#inserisce Linea: all'inizio di ogni riga
+cat /etc/passwd | sed 's/^/Linea:/'
+#Sostuisce a dottore Dott. (case insensitive)
+cat personale | sed 's/dottore/Dott./i'
+#awk, separatore di default e' il blank (spazio)
+cat log | awk -F ": " '{ print $2 }'
+#xargs
+cat /etc/passwd | cut -f1 -d: | xargs mail -s 'l output di cat e cut va in input a mail'
+#ss tcp processi e utenti
+ss -tpn
+#ss udp proc e ut
+ss -upn
+#data in timestamp
+date +%s
+#byte di un file
+stat prova.txt -c %s
+
+############################-TRAP-########################################
+
+FILE=/var/log/file.log
+function logging(){
+	case "$1" in
+		start)	receive_messages > "$FILE" & PID=$! ;;
+		stop)	test -n "$PID" && kill "$PID" ;;
+		restart)logging stop && logging start ;;
+	esac
+}
+
+trap 'logging restart' USR1
+trap 'logging stop' EXIT
+logging start
+while :
+do echo qui si fa qualcosa mentre si aspettano i segnali
+done
 
 ############################-AT-########################################
 
@@ -34,9 +103,8 @@ else
 		echo "$2 is not a number"
 		exit 3
 	fi
-	#notare che non sono ammessi indirizzi broadcast (non ammesso valore 255)
-	#occhio agli indirizzi che terminano per 0, basta spostare il '?' dopo [0-9]
-	if ! [[ "$3" =~ ^(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$ ]] ; then
+	#notare che non sono ammessi indirizzi broadcast (non ammesso valore 255) e gli indirizzi del tipo *.*.*.0
+	if ! [[ "$3" =~ ^(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-4]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]?)$ ]] ; then
 		echo "$3 non e' un IP valido"
 		exit 4
 	fi
@@ -54,16 +122,23 @@ ldapsearch -x -h 127.0.0.1 -b "dc=labammsis"
 ldapsearch -x -h 127.0.0.1 -b "fn=home,dc=labammsis" -s one
 #Visualizzare solo l'entry "fn=home,dc=labammsis" su ldap locale
 ldapsearch -x -h 127.0.0.1 -b "fn=home,dc=labammsis" -s base
-#Aggiungere una entry allo schema ldif
-ldapadd -x -D "cn=admin,dc=labammsis" -w admin -f entry.ldif
-#Eliminare una entry dallo schema ldif
-ldapdelete -x -D "cn=admin,dc=labammsis" -w admin "user=pippo,dc=labammsis"
+#Aggiungere una entry allo schema ldif su ldap locale
+ldapadd -x -h 127.0.0.1 -D "cn=admin,dc=labammsis" -w admin -f entry.ldif
+#Eliminare una entry dallo schema ldif su ldap locale
+ldapdelete -x -h 127.0.0.1 -D "cn=admin,dc=labammsis" -w admin "user=pippo,dc=labammsis"
 #Modificare una entry sullo schema ldif su ldap locale (oppure vedi funzione modldapattr)
 ldapmodify -x -h 127.0.0.1 -D "cn=admin,dc=labammsis" -w admin -f differenze.ldif
-#Visualizzare solo le entry con un certo valore di un attributo (output NON pulito)
-ldapsearch -x -h 127.0.0.1 -b "dc=labammsis" -s one 'status=open'
+#Visualizzare solo le entry con un certo valore di un attributo (output NON pulito), da usare in combo con grep (-c)
+ldapsearch -x -h 127.0.0.1 -b "dc=labammsis" -s one "status=open"
 #Visualizzare solo un attributo di una entry (output NON pulito)
 ldapsearch -x -h 127.0.0.1 -b "user=pippo,dc=labammsis" -s one status
+
+##########################-LDAP-########################################
+
+#esempio di aggiunta di una entry in uno schema ldap
+echo -e "dn: user=gatto,dc=labammsis\nobjectClass: data\nuser: topo\nupdate: $(date +%s)\nused: 0\nstatus: closed\nlimit: 200" > /tmp/entry.ldif
+ldapadd -x -h 127.0.0.1 -D "cn=admin,dc=labammsis" -w admin -f /tmp/entry.ldif
+rm /tmp/entry.ldif
 
 ##########################-LDAP-########################################
 
@@ -123,6 +198,55 @@ olcAttributeTypes: ( 1000.1.1.5 NAME 'update'
 olcObjectClasses: ( 1000.2.1.1 NAME 'data'
   DESC 'data'
   MUST ( user $ limit $ used $ status $ update )
+  STRUCTURAL )
+
+#Schema LDIF piu' articolato, importante non includere spazi
+dn: cn=file,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: file
+olcAttributeTypes: ( 5000.1.1.1 NAME ( 'uname' )
+  DESC 'uname'
+  EQUALITY caseExactMatch
+  SUBSTR caseExactSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: ( 5000.1.1.2 NAME ( 'file' )
+  DESC 'file'
+  EQUALITY caseExactMatch
+  SUBSTR caseExactSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: ( 5000.1.1.3 NAME ( 'action' )
+  DESC 'nome dello scipt'
+  EQUALITY caseExactMatch
+  SUBSTR caseExactSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcAttributeTypes: ( 5000.1.1.4 NAME ( 'ts' )
+  DESC 'ts'
+  EQUALITY integerMatch
+  ORDERING integerOrderingMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+olcAttributeTypes: ( 5000.1.1.5 NAME ( 'limit' )
+  DESC 'limit'
+  EQUALITY integerMatch
+  ORDERING integerOrderingMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+olcAttributeTypes: ( 5000.1.1.6 NAME ( 'byte' )
+  DESC 'byte'
+  EQUALITY integerMatch
+  ORDERING integerOrderingMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 )
+olcAttributeTypes: ( 5000.1.1.7 NAME ( 'client' )
+  DESC 'client'
+  EQUALITY caseExactMatch
+  SUBSTR caseExactSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+olcObjectClasses: ( 5000.2.1.1 NAME 'user'
+  DESC 'un utente'
+  MUST ( uname $ limit )
+  STRUCTURAL )
+olcObjectClasses: ( 5000.2.1.2 NAME 'request'
+  DESC 'richiesta di esecuzione'
+  MUST ( ts $ file $ client )
+  MAY (action $ byte )
   STRUCTURAL )
 
 ##########################-LDIF-########################################
@@ -228,7 +352,7 @@ snmpwalk -v 1 -c public localhost "UCD-SNMP-MIB::prNames"
 snmpwalk -v 1 -c public localhost .1 | grep "UCD-SNMP-MIB"
 
 # Ottengo l'id del processo "rsyslogd" su localhost e lo salvo in ID
-ID=$(snmpwalk -v 1 -c public localhost "UCD-SNMP-MIB::prNames" | grep mountd | awk -F "prNames." '{ print $2 }' | awk -F " = " '{ print $1 }')
+ID=$(snmpwalk -v 1 -c public localhost "UCD-SNMP-MIB::prNames" | grep rsyslogd | awk -F "prNames." '{ print $2 }' | awk -F " = " '{ print $1 }')
 # Utilizzo l'id per ottenere il conteggio, verifico cosi' se il processo e' in esecuzione su localhost
 snmpget -v 1 -c public localhost "UCD-SNMP-MIB::prCount.$ID" | awk -F "INTEGER: " '{ print $2 }'
 
@@ -270,6 +394,8 @@ iptables -D INPUT 2
 #Eliminare tutte le regole (di ogni chain o di quella specificata)
 iptables -F <chain>
 iptables -F
+#Azzera pacchetti passati nelle catena, mostrando valori attuali
+iptables -Z -vnL
 
 #options:
 -i eth3 # Solo pacchetti in ingresso dall'interfaccia eth3
