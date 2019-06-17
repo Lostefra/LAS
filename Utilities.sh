@@ -16,12 +16,22 @@ $*, $@ #Tutti gli argomenti passati.
 
 ############################-SSH-########################################
 
+#di default ciò che il programma remoto produce su stdout e stderr viene stampato sulla shell che invoca ssh
+
 #eseguire con ssh un comando remoto
 ssh 10.1.1.1 "ip r | egrep '^10\.9\.9\.0\/24 ' | awk '{ print \$3 }'" 
 #eseguire con ssh due comandi remoti
 ssh 10.1.1.1 "/bin/bash /tmp/regole$$.sh ; rm -f /tmp/regole$$.sh"
 #eseguire ssh con ridirezione input e output su client (ssh)
 ssh 10.1.1.1 "ls -l" > ~/out  2> ~/err
+#generare una coppia di chiavi rsa
+ssh-keygen -t rsa -b 2048 -P ""
+#Non legge da stdin (ridiretto su /dev/null)
+ssh -n 10.1.1.1 <command>
+#creo utenti remoti tramite ssh
+for i in {1..59} ; do
+	ssh -n 10.9.9.$i "adduser --disabled-password --gecos '' --home /home/$u $u ; mkdir /home/$u/.ssh ; echo $k >> /home/$u/.ssh/authorized_keys ; chown -R $u:$u /home/$u/.ssh ; chmod 700 /home/$u/.ssh ; echo '$i * * * * /home/$u/script.sh' | crontab"
+done
 
 #Impostare il sistema affinche' i router possano eseguire ssh verso i client
 ##### generare sui router coppie di chiavi ssh
@@ -158,22 +168,10 @@ ip route add 10.9.9.0/24 via 10.1.1.254
 ip route delete 10.9.9.0/24 via 10.1.1.254
 #cambiare sulla macchina ip che svolge l'instradamento
 ip route replace default via 10.1.1.254
+#aggiungere sulla macchina indicazioni riguardo l'instradamento
+ip route add 10.9.9.0/24 dev eth1
 #abilitare sulla macchina l'instradamento
 sysctl -w net.ipv4.ip_forward=1
-#tcpdump attende $SOGLIA pacchetti tra i due host
-tcpdump -vnl -i eth2 -c $SOGLIA src host $SIP and dst host $DIP and src port $SP and dst port $DP > /dev/null 2>&1
-#tcpdump fa loggare inizio e fine connessioni tra le due net
-( tcpdump -lnp -i eth2 'tcp[tcpflags] & (tcp-syn|tcp-fin) != 0 and src net 10.1.1.0/24 and dst net 10.9.9.0/24' 2>/dev/null | logger -p local0.info ) &
-#tcpdump traccia i pacchetti fin tra le due net
-#Output CON -v e CON 2>/dev/null
-#tcpdump: listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes
-#11:39:39.398845 IP (tos 0x10, ttl 64, id 64019, offset 0, flags [DF], proto TCP (6), length 52)
-#    10.9.9.1.46286 > 10.1.1.1.22: Flags [F.], cksum 0x9551 (correct), seq 3935713374, ack 2875122919, win 1091, options [nop,nop,TS val 1302060 ecr 4294932668], length 0
-tcpdump -vlnp -i eth3 'tcp[tcpflags] & tcp-fin != 0 and src net 10.9.9.0/24 and dst net 10.1.1.0/24' 2>/dev/null
-#tcpdump traccia i pacchetti fin tra i due host
-#Output SENZA -v e CON 2>/dev/null, port specificata (valido anche per net)
-#11:30:38.763502 IP 192.168.56.1.39010 > 192.168.56.202.22: Flags [F.], seq 2819887278, ack 1156069010, win 311, options [nop,nop,TS val 1218725399 ecr 2117893], length 0
-tcpdump -vlnp -i eth3 'tcp[tcpflags] & tcp-fin != 0 and src host 192.168.56.1 and dst net 192.168.56.202 and dst port 22'
 # Visualizza i PID dei processi che usano un file
 fuser /path/to/file
 # Visualizza i processi che usano un intero filesystem
@@ -192,6 +190,8 @@ lsof +D /path/to/dir
 lsof -i tcp
 # IMPORTANTE : Visualizza le porte numeriche e non simboliche
 lsof -i tcp -P
+#dd from if, se manca da stdin, to of, se manca stdout.
+dd if=IN of=OUT
 
 ############################-TRAP-########################################
 
@@ -215,6 +215,22 @@ done
 
 #due comandi tra mezz'ora
 echo "/root/ldapmod.sh $UTENTE status closed ; /root/ldapmod.sh $UTENTE used 0" | at now + 30 minutes
+#9:00 AM , now + 2 days
+
+#atq comandi in coda ad utente. Eseguito da root: comandi in coda a tutti
+# Rimuovo il job con Id 7 (con atq vedo id del job)
+atrm 7
+
+#rimuovo processo e comandi da lui lanciati, da grep ^job  mette id nel file
+trap "kill -9 -$$" EXIT
+echo "/bin/kill $$" | at now + 50 minutes 2>&1 | grep ^job | awk '{ print $2 }' > /tmp/watchdog.$$
+
+cd ~/jobs
+for S in * ; do
+	echo fai cose
+done
+
+atrm $(cat /tmp/watchdog.$$)
 
 ############################-ROOT-#######################################
 
@@ -275,6 +291,13 @@ ldapsearch -x -h 127.0.0.1 -b "user=pippo,dc=labammsis" -s one status
 #Applicare filtri in AND (per OR sostituire &->|)
 ldapsearch -h 127.0.0.1 -x -s one -b "uname=$USER,dc=labammsis" "(&(objectClass=request)(action=*))"
 ldapsearch -h 127.0.0.1 -x -b "dc=labammsis" -s sub "(&(objectclass=request)(|(action=get)(action=put)))"
+#Verificare che esista una entry
+if ldapsearch -h localhost -x -b "server=$ips,utente=$username,dc=labammsis" -s base >/dev/null 2>&1 ; then
+	echo entry presente
+else 
+	echo "lettura username fallita"
+fi
+
 
 ##########################-LDAP-########################################
 
@@ -495,6 +518,8 @@ tail --pid=$$ -f /var/log/reqs | while read mm gg hh host user msg ; do
 	echo $IP
 	echo $UTENTE
 done
+#(per filtrare su input)
+#tail --pid=$$ -f /var/log/reqs | grep --line-buffered EXEC___ | while read line; do
 
 #Usare una funzione per scrivere messaggi di errore sul log
 function err() {
@@ -559,6 +584,7 @@ snmpget -v 1 -c public 10.9.9.1 'SNMPv2-MIB::sysName.0'
 # Aggiungere al file: /etc/snmp/snmpd.conf (segue esempio)
 proc <nome_processo> <max_numero> <min_numero>
 #proc rsyslogd 10 1
+#proc rsyslogd
 #Elenco dei processi monitorati da snmp su localhost
 snmpwalk -v 1 -c public localhost "UCD-SNMP-MIB::prNames"
 # Visualizza tutti i valori di UDC - SNMP - MIB
@@ -640,6 +666,21 @@ gestisciRegola A 10.1.1.1
 # Elimino la regola
 gestisciRegola D 10.1.1.1
 
+#check rule in forward chain already exists 
+#Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
+# pkts bytes target     prot opt in     out     source               destination         
+#    0     0 ACCEPT     tcp  --  eth1   eth2    10.9.9.1             10.1.1.1             tcp spt:22 state ESTABLISHED
+#    0     0 ACCEPT     tcp  --  eth2   eth1    10.1.1.1             10.9.9.1             tcp dpt:22
+client=10.1.1.1
+server=10.9.9.1
+if ! iptables -vnL FORWARD | egrep -q "ACCEPT +tcp +-- +eth2 +eth1 +$client +$server +tcp dpt:22$" ; then
+	iptables -I FORWARD -o eth1 -i eth2 -p tcp -s 10.1.1.1 -d 10.9.9.1 --dport 22 -j ACCEPT
+	iptables -I FORWARD -o eth2 -i eth1 -p tcp -d 10.1.1.1 -s 10.9.9.1 --sport 22 -m state --state ESTABLISHED -j ACCEPT
+else
+	echo regola gia inserita
+fi
+
+
 ##########################-IPTABLES LOG-#####################################
 
 #Inserisce una regola che logga i pacchetti in transito nella chain specificata con prefisso e livello di log specificati
@@ -677,6 +718,7 @@ function imposta_regole(){
 #Jun 16 15:31:40 Router kernel: [10862.759703] ___ICMP___ IN=eth2 OUT= MAC=08:00:27:0b:37:1f:08:00:27:72:c7:c1:08:00 SRC=10.1.1.1 DST=10.1.1.254 LEN=84 TOS=0x00 PREC=0x00 TTL=64 ID=33869 DF PROTO=ICMP TYPE=8 CODE=0 ID=1301 SEQ=1
 
 # Apr 27 12:02:56 router kernel: [10139.999098]  INIZIO IN=eth2 OUT=eth1 MAC=08:00:27:27:a6:e6:08:00:27:24:9b:d5:08:00 SRC=10.1.1.1 DST=10.9.9.1 LEN=60 TOS=0x00 PREC=0x00 TTL=63 ID=23272 DF PROTO=TCP SPT=37668 DPT=22 WINDOW=29200 RES=0x00 SYN URGP=0
+
 # opzioni dei comandi
 # tail --pid $$ garantisce che tail termini quando termina il processo principale
 # grep --line-buffered e awk -W interactive evitano il buffering, ogni linea 
@@ -925,25 +967,74 @@ iptables-restore < /tmp/output
 
 ############################-CRON-###################################################
 
+#PERCORSI ASSOLUTI!
 #Esegue il comando ogni 5 minuti
 # */5 * * * * /root/traffic.sh
 #Esegue il comando da lun a ven alle 22
 # 00 22 * * 1-5 /root/traffic.sh
-# configuro cron per l'esecuzione, eseguendo i seguenti comandi
+#Esegue il comando alle 5 e alle 17 delle domeniche e dei venerdi di gennaio, maggio e agosto
+# 00 5,17 * jan,may,aug sun,fri /root/traffic.sh
+#Esegui un job la prima domenica di ogni mese
+#0 2 * * sun [ $(date +% d) -le 07 ] && /root/traffic.sh
+#Esegui ogni 30 secondi
+#* * * * * /root/traffic.sh
+#* * * * * sleep 30; /root/traffic.sh
+#Esegui piu' di un job
+#* * * * * /root/traffic.sh ; /root/script.sh
+#Esegui ogni smt=yearly,monthly,weekly,daily,hourly,reboot
+#@smt /root/traffic.sh
+
+# configuro cron per l'esecuzione, apro l'editor predefinito con crontab -e ed inserisco la linea "*/5 * * * * /root/traffic.sh"
+
+# configuro cron per l'esecuzione tramite script, eseguendo i seguenti comandi
 /usr/bin/crontab -l > /tmp/traffic.cron.$$
 echo "*/5 * * * * /root/traffic.sh" >> /tmp/traffic.cron.$$
 /usr/bin/crontab /tmp/traffic.cron.$$
 /bin/rm -f /tmp/traffic.cron.$$
-
+#edito cron altro utente
+crontab -u username -e
+#verifico chi ha invocato cron
 if /usr/bin/tty > /dev/null ; then
 	# invocato da terminale, controllo parametri
 else
 	# Invocato da cron
 fi
 
+############################-TCPDUMP-###################################################
+
+#Opzioni:
+-i any #Ascolta da tutte le interfacce di rete
+-i eth0 #Ascolta sull ’ interfaccia eth0
+-l #IMPORTANTE Line - buffered : Stampa un pacchetto appena lo riceve senza bufferizzare
+-n #IMPORTANTE Non risolvere gli hostname , lascia numerico
+-t #Stampa il tempo in un formato human - friendly
+-c [N] #Legge solo N pacchetti e poi termina
+-w output #Scrive i pacchetti nel file PCAP di output
+-r output #Legge i pacchetti dal file PCAP
+-p #No promiscuous mode
+-A #Stampa i pacchetti in ASCII
+-X #Stampa i pacchetti in ASCII ed esadecimale
+
+#tcpdump attende $SOGLIA pacchetti tra i due host con udp
+tcpdump -vnl -i eth2 -c $SOGLIA src host $SIP and dst host $DIP and src port $SP and dst port $DP and udp > /dev/null 2>&1
+#combinazioni
+tcpdump src 10.9.9.1 and (dst port 1234 or 22) and not src port 12345
+
+#tcpdump traccia i pacchetti fin tra le due net
+#Output CON -v e CON 2>/dev/null
+#tcpdump: listening on eth1, link-type EN10MB (Ethernet), capture size 262144 bytes
+#11:39:39.398845 IP (tos 0x10, ttl 64, id 64019, offset 0, flags [DF], proto TCP (6), length 52)
+#    10.9.9.1.46286 > 10.1.1.1.22: Flags [F.], cksum 0x9551 (correct), seq 3935713374, ack 2875122919, win 1091, options [nop,nop,TS val 1302060 ecr 4294932668], length 0
+tcpdump -vlnp -i eth3 'tcp[tcpflags] & tcp-fin != 0 and src net 10.9.9.0/24 and dst net 10.1.1.0/24' 2>/dev/null
+
+#tcpdump traccia i pacchetti fin tra i due host
+#Output SENZA -v e CON 2>/dev/null, port specificata (valido anche per net)
+#11:30:38.763502 IP 192.168.56.1.39010 > 192.168.56.202.22: Flags [F.], seq 2819887278, ack 1156069010, win 311, options [nop,nop,TS val 1218725399 ecr 2117893], length 0
+tcpdump -vlnp -i eth3 'tcp[tcpflags] & tcp-fin != 0 and src host 192.168.56.1 and dst host 192.168.56.202 and dst port 22'
+
 ############################-TCPDUMP LOG-###################################################
 
-#logging in background di inizio e fine connessioni tcp
+#logging in background di inizio e fine connessioni tcp tra le due net
 ( tcpdump -lnp -i eth2 'tcp[tcpflags] & (tcp-syn|tcp-fin) != 0 and src net 10.1.1.0/24 and dst net 10.9.9.0/24' 2>/dev/null | logger -p local0.info ) &
 
 # log format:
@@ -1116,6 +1207,8 @@ passwd <nomeutente>
 whoami
 # Elenca gli utenti correntemente collegati alla macchina
 who
+#Fa eseguire un comando ad un altro utente
+su -c 'cat .ssh/id_rsa.pub' - username
 
 ############################-PERMESSI-###################################################
 
@@ -1146,8 +1239,118 @@ umask -S
 umask 0002
 #L’impostazione della umask è valida solo per la sessione di shell corrente. Per fare in modo che l’impostazione sia persistente, bisogna aggiungere il comando umask al file /etc/bash.bashrc
 
+############################-ALTRO ROUTER-###################################################
+
+ROUTER1="10.1.1.253"
+ROUTER2="10.1.1.254"
+
+function altro_router(){
+        ATTUALE=$1
+        if test $ATTUALE = $ROUTER1
+                echo $ROUTER2
+        else
+                echo $ROUTER1
+        fi
+}
+
+##MAIN
+
+ATTUALE=$(ifconfig eth2 | grep "inet addr" | awk -F 'addr:' '{ print $2 }' | cut -f1 -d" ")
+ALTRO=$(altro_router $ATTUALE)
+
+############################-ESEGUI SEMPRE-###################################################
+
+#  deve essere permanentemente in esecuzione su entrambi i router (specificare nei commenti come si può ottenere che questo avvenga fin dal boot)
+# inserire in /etc/inittab
+# pi:2345:respawn:/root/ping.sh
+
+############################-CONTARE TRAFFICO CON CATENA-###################################################
+
+# funzione che abilita il traffico per uno specifico client i parametri sono $1: indirizzo cliente $2: inserimento o cancellazione regole
+function set_rules() {
+	if [ "$2" = "open"] ; then
+
+		# Apro la connessione inserendo una catena per contare il traffico
+		iptables -N "C_$1" 
+		iptables -I "C_$1" -j ACCEPT
+
+		iptables -I FORWARD -i eth3 -s "$1" -j "C_$1"
+		iptables -I FORWARD -o eth3 -d "$1" -j "C_$1"
+
+	elif [ "$2" = "close" ] ; then 
+
+		# Rimuovo la connessione
+		iptables -D FORWARD -i eth3 -s "$1" -j "C_$1"
+		iptables -D FORWARD -o eth3 -d "$1" -j "C_$1"
+
+		iptables -F "C_$1" 
+		iptables -X "C_$1"
+		
+	fi
+}
+
+##MAIN##
+
+DIMENSIONE=$(iptables -Z -vxnL C_$SOURCE | grep ACCEPT | awk '{ print $2 }' 2>/dev/null)
+#se regola non gia' inserita
+if [ -z "$DIMENSIONE" ] ; then
+	set_rules $SOURCE open
+	DIMENSIONE=0
+else
+	# aggiorno la dir di LDAP
+	DIMENSIONE=$(($DIMENSIONE + $TRAFFICO))
+	(echo "dn: utente=$UTENTE,dc=labammsis"
+	 echo "changetype: modify"
+	 echo "replace: traffico"
+	 echo "traffico: $DIMENSIONE") 
+	| ldapmodify -x -c -h 192.168.56.202 -w las -D "cn=admin,dc=laboratorio" 
+fi
+
+############################-ESEGUIRE IN PARALLELO-###################################################
+
+#MEGLIO CON PATH ASSOLUTI
+
+function is_default(){
+	# segnalo che sta girando il verificatore
+	touch running_$1
+        ssh root@$1 "ip route" | grep -q "default via $ROUTER" || touch $1 
+	rm -f running_$1
+}
+
+##MAIN##
+
+rm -rf /tmp/check$$
+mkdir /tmp/check$$
+cd /tmp/check$$
+
+ldapsearch -h 127.0.0.1 -x -b 'dc=labammsis' "(&(objectClass=gw)(iprouter=$ROUTER))" -s one ipclient | grep "^ipclient:" | awk '{ print $2 }' | while read IP ; do
+	# lancio tutti i verificatori di coerenza in parallelo
+        is_default $IP &
+	# crea un file in /tmp/check$$ per ogni client con routing incoerente
+done
 
 
+# attendo la fine di tutti i verificatori
+while ls running* ; do sleep 1 ; done > /dev/null 2>&1
+
+# Per ogni client su cui è configurato un default gateway incoerente 
+# con quello memorizzato in LDAP ...
+for CLIENT in * ; do
+	imposta_regole $CLIENT
+done
+
+############################-PROCESSI DEMONI-###################################################
+
+ls /etc/init.d
+
+acpid			checkroot.sh   kbd	       motd		      nfs-common	 reboot     slapd	 umountnfs.sh
+anacron			console-setup  keyboard-setup  mountall-bootclean.sh  nfs-kernel-server  rmnologin  snmpd	 umountroot
+atd			cron	       killprocs       mountall.sh	      openvpn		 rpcbind    ssh		 urandom
+bluetooth		dbus	       kmod	       mountdevsubfs.sh       procps		 rsyslog    sudo	 x11-common
+bootlogs		exim4	       lvm2	       mountkernfs.sh	      rc		 saned	    sysstat
+bootmisc.sh		halt	       mdadm	       mountnfs-bootclean.sh  rc.local		 sendsigs   udev
+checkfs.sh		hostname.sh    mdadm-raid      mountnfs.sh	      rcS		 single     udev-finish
+checkroot-bootclean.sh	hwclock.sh     mdadm-waitidle  networking	      README		 skeleton   umountfs
 
 
 
