@@ -874,8 +874,8 @@ function setprotoparams() {
 	# DP e SP sono sorgente e destinazione solo se non è icmp
 	# sarebbe opportuno error checking, anche se invocata solo 
 	# internamente da questo stesso script
-	PROTO="$1"
-	if test "$PROTO" = "icmp" ; then
+	PROTO="-p $1"
+	if test "$PROTO" = "-p icmp" ; then
 		DP=""
 		SP=""
 	else
