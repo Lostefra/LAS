@@ -1,5 +1,3 @@
-# LAS
-Utilities per LAS
+# LAS - Laboratorio di Amministrazione di Sistemi
 
-Se volete diventare collaboratori avvisatemi e vi aggiugno
-Ognuno crei dei propri file così non ci incasiniamo con i push
+In questa repository è presente un [file di utility bash](https://github.com/Lostefra/LAS/blob/master/Utilities.sh) che ho realizzato in preparazione dell'esame di [LAS](http://lia.disi.unibo.it/Courses/AmmSistemi1819/) (Bachelor in Computer Engineering, Alma Mater Studiorum - University of Bologna).
