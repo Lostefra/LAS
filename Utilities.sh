@@ -1,7 +1,7 @@
 #!/bin/bash
-#Utilites per LAS - Lorenzo Amorosa
+#Utilites per LAS
 
-############################-VARIABILI-########################################
+###############-VARIABILI E SIMBOLI SPECIALI-############################
 
 $$ #PID dello script bash corrente
 $# #Numero di argomenti da riga di comando
@@ -14,21 +14,82 @@ $*, $@ #Tutti gli argomenti passati.
 "$*" #Tutti gli argomenti in un unica stringa "$1 $2 ...". I valori sono separati da $IFS.
 "$@" #Tutti gli argomenti, separati individualmente ("$1" "$2"...).
 
+###########################-ARRAY-#######################################
+# Dichiarare un array con indici
+declare -a my_array
+# Dichiarare un array associativo
+declare -A my_array
+# Inserire più valori nell'array tutti in una volta
+my_array=(foo bar lol ciao)
+# Assegnare un valore alla volta a un array
+my_array[0]=foo
+
+# Operazioni con array
+
+# Stampare tutti i valori di un array
+echo ${my_array[@]}
+# oppure
+echo ${my_array[*]}
+# Stampo tutti gli elementi dell'array su righe diverse
+for i in "${my_array[@]}"; do echo "$i"; done
+# Stampo tutti gli elementi dell'array sulla stessa riga, separati da spazi:
+for i in "${my_array[*]}"; do echo "$i"; done
+
+
+# Stampo la posizione in un array posizionale:
+my_array=(foo bar baz)
+for index in "${!my_array[@]}"; do echo "$index"; done
+# Output:
+# 0
+# 1
+# 2
+
+# Stampo le chiavi in un array associativo:
+declare -A my_array
+my_array=([foo]=bar [baz]=foobar)
+for key in "${!my_array[@]}"; do echo "$key"; done
+# Output:
+# baz
+# foo
+
+
+# Trovare la dimensione di un array
+DIM=${#my_array[@]}
+
+# Aggiungo un ulteriore elemento all'array
+my_array+=(baz)
+# Aggiungo ulteriori elementi all'array (separati da spazi)
+my_array+=(baz foobar)
+
+# Per l'array associativo, per aggiungere elementi:
+my_array+=([baz]=foobar [foobarbaz]=baz)
+
+# Cancellare un elemento in una posizione specificata
+unset my_array[1]
+# Cancellare l'intero array
+unset my_array
+
+${arr[*]}         # Tutti gli elementi dell' array
+${!arr[*]}        # Tutti gli indici dell' array
+${#arr[0]}        # Lunghezza dell'elemento zero
+
 ############################-SSH-########################################
 
-#di default ciò che il programma remoto produce su stdout e stderr viene stampato sulla shell che invoca ssh
+# di default ciò che il programma remoto produce su stdout e stderr viene stampato sulla shell che invoca ssh
 
-#eseguire con ssh un comando remoto
+# eseguire con ssh un comando remoto
 ssh 10.1.1.1 "ip r | egrep '^10\.9\.9\.0\/24 ' | awk '{ print \$3 }'" 
-#eseguire con ssh due comandi remoti
+# eseguire con ssh due comandi remoti
 ssh 10.1.1.1 "/bin/bash /tmp/regole$$.sh ; rm -f /tmp/regole$$.sh"
-#eseguire ssh con ridirezione input e output su client (ssh)
+# eseguire ssh con ridirezione input e output su client (ssh)
 ssh 10.1.1.1 "ls -l" > ~/out  2> ~/err
-#generare una coppia di chiavi rsa
+# copiare un file da server (/results/$1) a client (home/las/results/$1):
+ssh 10.9.9.1 "cat /result/$1" | ssh las@10.1.1.1 "cat > 'results/$1'"
+# generare una coppia di chiavi rsa
 ssh-keygen -t rsa -b 2048 -P ""
-#Non legge da stdin (ridiretto su /dev/null)
+# Non legge da stdin (ridiretto su /dev/null)
 ssh -n 10.1.1.1 <command>
-#creo utenti remoti tramite ssh
+# creo utenti remoti tramite ssh
 for i in {1..59} ; do
 	ssh -n 10.9.9.$i "adduser --disabled-password --gecos '' --home /home/$u $u ; mkdir /home/$u/.ssh ; echo $k >> /home/$u/.ssh/authorized_keys ; chown -R $u:$u /home/$u/.ssh ; chmod 700 /home/$u/.ssh ; echo '$i * * * * /home/$u/script.sh' | crontab"
 done
@@ -38,15 +99,162 @@ done
 ##### mettere le chiavi pubbliche dei router su ogni client
 ##### nel file /root/.ssh/authorized_keys
 
-############################-COMMANDS-########################################
+###################################-MAN-######################################
 
+# (1) User commands
+# (2) Chiamate al sistema operativo
+# (3) Funzioni di libreria, ed in particolare
+# (4) File speciali (/dev/*)
+# (5) Formati dei file, dei protocolli, e delle relative strutture C
+# (6) Giochi
+# (7) Varie: macro, header, filesystem, concetti generali
+# (8) Comandi di amministrazione riservati a root
+# (n) Comandi predefiniti del linguaggio Tcl/Tk
+
+# cercare nel man un comando in tutte le sezioni
+man -a <nome-comando>
+# cercare nel man in una sezione specificata
+man <sez> <comando>
+# carcare tutte le pagine attinenti alla parola chiave specificata
+man -k <keyword>
+
+##################################-TEST-######################################
+# Comodo con if
+# Opzioni comando test 
+
+# true se file esiste ed è una directory
+-d file
+# true se file esiste
+-e file
+# true se file esiste ed è un file regolare
+-f file
+# true se file esiste ed è leggibile
+-r file
+# true se file esiste ed ha dimensione >0
+-s file
+# true se file esiste ed è scrivibile
+-w file
+# true se file esiste ed è eseguibile
+-x file
+# true se la stringa è vuota
+-z string
+# true se la stringa è non vuota
+-n string
+
+##############################################################################
+
+# svuoto file
+
+# Svuoto un file senza cancellarlo in modo safe
+
+cat /dev/null > /var/log/req.log
+
+############################-COMMANDS-########################################
+# Come vedere se un certo comando è un comando esterno (/bin/<nome-comando>), un alias o built-in
+type -a <nome-comando>
 #copia file da locale a remoto, inserire nomefile e valore X (1 Client, 2 Router, 3 Server) (-r per dir ricorsive)
-scp nomefile las@192.168.56.20X:nomedestinazione
+scp nomefile_locale root@192.168.56.20X:path_to_remote_dir
 #copia file da remoto a locale, inserire nomefile e valore X (1 Client, 2 Router, 3 Server) (-r per dir ricorsive)
-scp las@192.168.56.20X:nomefile nomedestinazione
+# NB ESEGUIRE DA LOCALE IL COMANDO
+scp root@192.168.56.20X:/path_nomefile_remoto ~/nomedestinazione_locale
 #numeri da first a last
 seq first | first last | first increment last
+
+#########################-LS-############################
+# Elenca i file o il contenuto della directory specificata
+
+# Elenca il contenuto della directory corrente
+ls
+
+# Opzioni:
+
+-l                  # Sbbina al nome le informazioni associate al file
+-h                  # Mostra la dimensione del file in versione più leggibile
+-a                  # Mostra tutto (includendo anche i file che iniziano con .)
+-A                  # Come -a ma escludendo .. e .
+-R                  # Percorre ricorsivamente la gerarchia
+-r                  # Inverte l'ordine dell'elenco
+-t                  # Ordina i file in base all'ora di modifica (dal più recente)
+-i                  # Indica gli i-number dei file
+-F                  # Aggiunge alla fine del filename * agli eseguibili e / ai direttori
+-d                  # Mostra le informazioni di un direttorio senza listare contenuto
+-X                  # Lista alfabeticamente in base all'estensione
+--full-time         # Mostra la data di modifica completa (data, ora, sec, ecc)
+--sort=extension    # Ordina in base all'estensione
+--sort=size         # Ordina in base alla dimensione del file
+--sort=time         # Ordina in base alla data di ultima modifica
+
+###########################################################
+
+# Crea un hardlink
+ln /path/to/file /path/to/hardline
+# Crea un link simbolico
+ln -s /path/to/file /path/to/link
 #leggere ininterrottamente da file
+
+#########################-DU-###############################
+
+du /path/directory # stampa la dimensione di ogni nodo dell'albero
+
+# Opzioni principali:
+
+-h                  # Mostra le dimensioni in modo facilmente leggibile
+-s                  # Mostra il sommario (totale) della directory
+--max-depth         # Massima profondità di esplorazione :wink:
+--exclude="*.txt"   # Esclude tutti i file che rispettano il pattern
+                    # Non supporta le regular expressions
+                    
+# Esempi:
+du -s ~/Documenti
+# Output:
+# 4,8G    /home/katchup/Documenti
+
+du -h ~/Documenti
+# Output:
+# 37M     /home/katchup/Documenti/Fisica2/teoria
+# 48M     /home/katchup/Documenti/Fisica2
+# 3,3M    /home/katchup/Documenti/Tesi
+# 4,8G    /home/katchup/Documenti
+
+# Mostra i 10 file pià voluminosi del direttorio corrente:
+
+du | sort -nr | head -10
+
+######################-FIND-###########################
+
+# permette di trovare file e directory all'interno del sistema
+
+# Trovare tutti i file che finiscono per .txt nella directory specificata
+find /percorso/directory -name *.txt 
+# Trovare tutti i file con dimensione superiore a 100k
+find -size +100k
+# Trovare tutti i file dell'utente las
+find -user las
+# Trovare tutti i file del gruppo las
+find -group las
+# Trovare tutti i direttori
+find -type d
+# Trovare tutti i file che possono essere eseguiti dal proprietario e dal gruppo
+find -type f -perm -110
+# Trovare tutti i file che hanno esattamente il permesso 110
+find -type f -perm /110
+# Cercare tutti i file il cui nome finisce con .jpg con una regex egrep
+find . -regextype posix-egrep -regex '.*\.jpg'
+
+# NOT, AND, OR con FIND
+# NOT: Trovare tutti i file che non finiscono per .txt:
+find | -name *.txt
+
+# AND: basta mettere più comandi e vengono interpretati come AND
+# Esempio: trovare tutti i file con dimensione superiore a 100k e che finiscono in .txt
+find -size +100k -name *.txt
+
+# OR: bisogna inserire l'opzione -o prima del secondo comando
+# Trovare tutti i file dell'utente las o che finiscono per .txt
+find -user las -o -name *.txt
+
+############################################################
+
 tail --pid=$$ -f /var/log/reqs | while read var1 var2 ; do  echo $var1; done
 #elimina la prima riga da output
 tail -n +2		
@@ -73,6 +281,8 @@ grep -B <N> <pattern> <file>
 grep -A <N> <pattern> <file>
 #Stampa senza bufferizzare
 grep --line-buffered <pattern> <file>
+# Rimuove tutte le linee vuote, incluse quelle con spazi multipli: 
+grep "\S" file.txt
 # Elenca tutti i file che contengono "ciao" analizzando
 # ricorsivamente il direttorio corrente .
 grep -r "ciao" .
@@ -116,6 +326,17 @@ ps u
 ps w
 #Visualizza i rapporti di discendenza tra i processi
 ps f
+
+# xargs: considera come parametri dei comandi elencati successivamente a xargs quelli passati in standard input
+xargs ps hu # stampa i processi in esecuzione, senza il clasico header di ps, in formato user oriented, ovvero:
+
+# katchup    12504  0.0  0.0   7612  4256 pts/0    Ss+  15:40   0:00 /bin/bash
+# katchup    18127  0.0  0.0   7640  4120 pts/1    Ss   19:45   0:00 /bin/bash
+# katchup    18136  0.0  0.0   8172  4920 pts/1    S+   19:45   0:00 man iptables
+# katchup    18146  0.0  0.0   6636  3200 pts/1    S+   19:45   0:00 less
+# katchup    19253  0.0  0.0   7640  4396 pts/2    Ss   20:20   0:00 /bin/bash
+# katchup    19567  0.0  0.0   8820  3200 pts/2    R+   20:28   0:00 ps hu
+
 #ordina alfabeticamente
 sort <f>
 #ordina numericamente
@@ -134,7 +355,7 @@ uniq -c
 uniq -d
 #-SED
 #sed 's/vecchio_pattern/nuovo_valore/' <file>
-#inserisce Linea: all'inizio di ogni riga
+#inserisce Linea: all'inizio di ogni rigaf
 cat /etc/passwd | sed 's/^/Linea:/'
 #Sostuisce a dottore Dott. (case insensitive)
 cat personale | sed 's/dottore/Dott./i'
@@ -148,16 +369,69 @@ sed \$d	<file>
 cat log | awk -F ": " '{ print $2 }'
 #awk senza buffering
 cat log | awk -W interactive '{ print $1 }'
+#awk che effettua substring:
+# Sottostringa di $LINE da posizione $MIN a posizione $MAX
+SUBSTRING=$(awk '{ print substr( $LINE, $MIN, $MAX ) }') 
 #xargs
 cat /etc/passwd | cut -f1 -d: | xargs mail -s 'l output di cat e cut va in input a mail'
-#ss tcp processi e utenti
+
+########################- COMANDO SS-################################
+
+# OPZIONI:
+
+# -a: mostra tutti i socket, sia LISTENING che non LISTENING (per TCP non-listening = connessione stabilita)
+# -p : mostra processi che utilizzano socket
+# -n : non risolve nomi di servizi
+# -l : mostra solo socket di ascolto
+# -4 : mostra solo socket IPv4
+# -t : mostra solo socket TCP
+# -u : mostra solo socket UDP
+# -e : mostra informazioni dettagliate su socket
+# -m : mostra l'utilizzo della memoria di socket
+
+# ss tcp processi e utenti attualmente in uso
 ss -tpn
-#ss udp proc e utenti
+# un classico output di ss -tpn è il seguente:
+# State  Recv-Q  Send-Q     Local Address:Port        Peer Address:Port  Process                                      
+# ESTAB  0       0            192.168.1.8:37700      151.101.242.2:443    users:(("termius-app",pid=1878,fd=32))      
+# ESTAB  0       0           192.168.56.1:51536     192.168.56.201:22     users:(("termius-app",pid=1893,fd=43))      
+# ESTAB  0       0            192.168.1.8:58190       52.38.182.23:443    users:(("firefox",pid=5558,fd=89))         
+
+# ss udp proc e utenti attualmente in uso
 ss -upn
+# visualizzare le porte in ascolto 
+ss -lnt
+
+# output di ss -lnt:
+# las@Client:~$ ss -lnt
+# State       Recv-Q Send-Q   Local Address:Port     Peer Address:Port 
+# LISTEN      0      128                  *:52467               *:*     
+# LISTEN      0      128                  *:54164               *:*     
+# LISTEN      0      128                  *:22                  *:*     
+# LISTEN      0      128                  *:46071               *:*     
+# LISTEN      0      20           127.0.0.1:25                  *:*     
+# LISTEN      0      64                   *:2049                *:*     
+# LISTEN      0      64                   *:45284               *:*     
+# LISTEN      0      128                  *:39822               *:*     
+# LISTEN      0      128                  *:111                 *:*     
+# LISTEN      0      128                 :::22                 :::*     
+# LISTEN      0      64                  :::54008              :::*     
+# LISTEN      0      20                 ::1:25                 :::*     
+# LISTEN      0      128                 :::33915              :::*     
+# LISTEN      0      64                  :::2049               :::*     
+# LISTEN      0      128                 :::39754              :::*     
+# LISTEN      0      128                 :::43210              :::*     
+# LISTEN      0      128                 :::43403              :::*     
+# LISTEN      0      128                 :::111                :::*   
+
+####################################################################
+
 #data in timestamp
 date +%s
 #byte di un file
 stat prova.txt -c %s
+#proprietario di un file
+stat -c %U prova.txt
 #aggiungere sulla macchina un ip con maschera e su interfaccia specificata
 ip addr add 10.1.1.1/24 dev eth2
 #rimuovere sulla macchina un ip con maschera e su interfaccia specificata
@@ -193,6 +467,48 @@ lsof -i tcp -P
 #dd from if, se manca da stdin, to of, se manca stdout.
 dd if=IN of=OUT
 
+##############################-PORTE LIBERE-###############################
+###########################- SS porte libere-#############################
+
+# Questo script cerca, sul server in cui è lanciato, tra le porte TCP > 10000, la porta
+# PORTA libera con valore più basso.
+
+PORTA=10001
+# Verifico se la porta 10001 è disponibile, e se lo è la utilizzo, altrimenti verifico che la porta successiva sia disponibile
+while ss -lnt | cut -f2 -d: | awk '{ print $1 }' | grep -q $PORTA ; do
+	PORTA=$(( $PORTA + 1 ))
+	test $PORTA -gt 65535 && exit 1
+done
+
+
+##############################-MEMORY USAGE-###############################
+
+# Free stampa l'utilizzo della memoria nel seguente formato:
+
+#               total        used        free      shared  buff/cache   available
+# Mem:          15633        3219        9068         878        3345       11204
+# Swap:         16392           0       16392
+
+free
+
+# Un altro utile comando per vedere l'utilizzo della memoria, CPU, utenti e processi in esecuzione
+# è top
+
+# Output:
+
+# top - 15:20:30 up  6:57,  5 users,  load average: 0.64, 0.44, 0.33
+# Tasks: 265 total,   1 running, 263 sleeping,   0 stopped,   1 zombie
+# %Cpu(s):  7.8 us,  2.4 sy,  0.0 ni, 88.9 id,  0.9 wa,  0.0 hi,  0.0 si,  0.0 st
+# KiB Mem:   8167848 total,  6642360 used,  1525488 free,  1026876 buffers
+# KiB Swap:  1998844 total,        0 used,  1998844 free,  2138148 cached
+# PID USER      PR  NI  VIRT  RES  SHR S  %CPU %MEM    TIME+  COMMAND
+# 2986 enlighte  20   0  584m  42m  26m S  14.3  0.5   0:44.27 yakuake
+# 1305 root      20   0  448m  68m  39m S   5.0  0.9   3:33.98 Xorg
+# 7701 enlighte  20   0  424m  17m  10m S   4.0  0.2   0:00.12 kio_thumbnail
+
+# Per ottenere uno snapshot del comando top e salvarlo in un file:
+top -b -n 1 > top.txt
+
 ############################-TRAP-########################################
 
 FILE=/var/log/file.log
@@ -213,16 +529,21 @@ done
 
 ############################-AT-########################################
 
-#due comandi tra mezz'ora
+# Utilizzare AT per terminare un processo dopo X minuti
+
+# Importante anche per l'attesa di al massimo di 30 minuti
+echo "kill $$" | at now + 30 minutes 2>&1 | awk '{ print $2 }' > /tmp/req$$
+# due comandi tra mezz'ora
 echo "/root/ldapmod.sh $UTENTE status closed ; /root/ldapmod.sh $UTENTE used 0" | at now + 30 minutes
 #9:00 AM , now + 2 days
 
-#atq comandi in coda ad utente. Eseguito da root: comandi in coda a tutti
+# atq comandi in coda ad utente. Eseguito da root: comandi in coda a tutti
 # Rimuovo il job con Id 7 (con atq vedo id del job)
 atrm 7
 
 #rimuovo processo e comandi da lui lanciati, da grep ^job  mette id nel file
 trap "kill -9 -$$" EXIT
+# Importante: Memorizzo il pid del processo da terminare in un file apposito
 echo "/bin/kill $$" | at now + 50 minutes 2>&1 | grep ^job | awk '{ print $2 }' > /tmp/watchdog.$$
 
 cd ~/jobs
@@ -230,7 +551,10 @@ for S in * ; do
 	echo fai cose
 done
 
+# Con atrm rimuovo il processo relativo al comando desiderato
 atrm $(cat /tmp/watchdog.$$)
+rm -f /tmp/at_$DADDR
+
 
 ############################-ROOT-#######################################
 
@@ -238,8 +562,21 @@ comandi di root: iptables, ss (?), tcpdump, adduser, addgroup, passwd, chown
 #script da chiamare supposti in /root/
 
 ############################-CHECK-######################################
+# REGEX
+# Check
+# Parametri
 
-#Controllo parametri
+# Controllo che siano passati meno 30 minuti tra adesso e timestamp.
+# Se sono passati 30 minuti segnalo errore.
+
+NOW=$(date +%s)
+if test $(( $NOW - $TIMESTAMP )) -gt 1800 ; then
+    echo "Entry recenti (inserite da meno di 30 minuti) non trovate"
+    exit 2
+fi
+
+
+# controllo parametri
 if [[ $# -ne "3" ]]; then 
 	echo "Uso: $! ip_client num ip_generico"
 	exit 1
@@ -247,7 +584,7 @@ else
 	#Controllo ch $1 abbia ultimo byte ip tra 1-100
 	if ! echo "$1" | egrep -q "^10\.1\.1\.([1-9][0-9]?|100)$" ; then
 		echo "$1 non e' un IP valido di client"
-		exit 2
+		exit 2-h 10.9.9.254
 	fi
 	#Controllo che $2 sia un numero intero, anche ^\d$
 	if ! [[ "$2" =~ ^[0-9]+$ ]]; then
@@ -264,7 +601,12 @@ else
 		echo "$1 deve essere close/open"
 		exit 5
 	fi
+	
 fi
+
+###########################-REGEX UTILI-###############################
+
+# Vedi cheatsheet in allegato
 
 ##########################-LDAP-########################################
 
@@ -288,9 +630,39 @@ ldapmodify -x -h 127.0.0.1 -D "cn=admin,dc=labammsis" -w admin -f differenze.ldi
 ldapsearch -x -h 127.0.0.1 -b "dc=labammsis" -s one "status=open"
 #Visualizzare solo un attributo di una entry (output NON pulito)
 ldapsearch -x -h 127.0.0.1 -b "user=pippo,dc=labammsis" -s one status
+
+######################-FILTRI LDAP-###################################
+
+# Filtri LDAP:
+
+# Uguaglianza:  (attribute=abc)     , e.g. (&(objectclass=user)(displayName=Foeckeler)
+# Negazione:    (!(attribute=abc))  , e.g. (!objectClass=group)
+# Presenza:     (attribute=*)       , e.g. (mailNickName=*)
+# Assenza:      (!(attribute=*))    , e.g. (!proxyAddresses=*)
+# Maggiore di:  (attribute>=abc)    , e.g. (mdbStorageQuota>=100000)
+# Minore di:    (attribute<=abc)    , e.g. (mdbStorageQuota<=100000)
+# Prossimità:   (attribute~=abc)    , e.g. (displayName~=Foeckeler) 
+# Wildcards: 	e.g. (sn=F*) or (mail=*@cerrotorre.de) or (givenName=*Paul*)
+
+# Esempio 
+# LDAP con:
+#   MUST:   name
+#   MAY:    routerport, serverport, server
+
+# LDAP: cerco eventuali entry col solo attributo name compilato (che è MUST), mentre gli attributi MAY devono essere assenti.
+# Soluzione:
+ldapsearch -x -b "dc=labammsis" -s one '(&(!(routerport=*))(!(serverport=*))(!(server=*)))' | grep ^name: | 
+
 #Applicare filtri in AND (per OR sostituire &->|)
 ldapsearch -h 127.0.0.1 -x -s one -b "uname=$USER,dc=labammsis" "(&(objectClass=request)(action=*))"
 ldapsearch -h 127.0.0.1 -x -b "dc=labammsis" -s sub "(&(objectclass=request)(|(action=get)(action=put)))"
+
+# -LLL rimuove l'output commentato (ci sono vari livelli, 3 L e' output completamente privo di commenti)
+ldapsearch -LLL -x -h 10.9.9.254 -b "dc=labammsis" "(&(objectClass=richiesta)(tempo>=$(( $(date +%s) - 1800 ))))" -S tempo 
+
+#########################################################################
+
+
 #Verificare che esista una entry
 if ldapsearch -h localhost -x -b "server=$ips,utente=$username,dc=labammsis" -s base >/dev/null 2>&1 ; then
 	echo entry presente
@@ -298,6 +670,63 @@ else
 	echo "lettura username fallita"
 fi
 
+# Cerco l'attributo di una entry
+# Cerco il valore corrispondende a routerport e lo salvo in $RP
+$RP=$(ldapsearch -x -h 10.1.1.254 -b "name=$1,dc=labammsis, " -s base | grep ^routerport | awk '{ print $2 }')
+
+##################-ESEMPIO DI OUTPUT CON LDAPSEARCH-################
+
+ldapsearch -x -h 10.1.1.254 -b "cn=admin,dc=labammsis" -s base
+
+#Output:
+
+# extended LDIF
+#
+# LDAPv3
+# base <dc=labammsis> with scope subtree
+# filter: (objectclass=")
+# requesting: ALL
+
+# labammsis
+
+dn: dc=labammsis
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: labammsis
+dc: labammsis
+
+# admin, labammsis
+dn: cn=admin, dc=labammsis
+objectClass: simpleSecurityObject
+objectClass: organizationalRole
+cn: admin
+description: LDAP administrator
+userPassword:: E1NTSEF9a2M4c0FfcaRkDlOAmCmiSnDDCKAOSIQJHUl=
+
+#123_331234124133, labammsis
+dn: idunico=123_3312341234133,dc=labammsis
+objectClass: risultato
+idunico: 123_3312341234133
+nome: /etc/passwd
+prop: root
+dimen: 1798
+
+#142_1331234468413, labammsis
+dn: idunico=142_1331234468413,dc=labammsis
+objectClass: risultato
+idunico: 142_1331234468413
+nome: /etc/passwd
+prop: root
+dimen: 1798
+
+#177_1771737468717, labammsis
+dn: idunico=177_1771737468717,dc=labammsis
+objectClass: risultato
+idunico: 177_1771737468717
+nome: /etc/passwd
+prop: root
+dimen: 1798
 
 ##########################-LDAP-########################################
 
@@ -307,18 +736,41 @@ ldapadd -x -h 127.0.0.1 -D "cn=admin,dc=labammsis" -w admin -f /tmp/entry.ldif
 rm /tmp/entry.ldif
 
 #Aggiunta di entry, con certezza riguardo alla sua univocita'
-# $1 = nuovo gateway, $2 = server LDAP da aggiornare, $3 DN, $4 ipclient
+# $1 = nuovo gateway, $2 = indirizzo server LDAP da aggiornare, $3 DN, $4 ipclient
 function registra_ldap(){
 	ldapdelete -c -h $2 -x -D "cn=admin,dc=labammsis" -w admin "$3" 2> /dev/null
 	TS=$(/bin/date +%s)
-        echo "dn: $3
+echo "dn: $3
 objectClass: gw
 ipclient: $4
 iprouter: $1
 timestamp: $TS" | ldapadd -x -D "cn=admin,dc=labammsis" -w admin -h $2
 }
 
-#rimpiazzo interamente la mia directory ldap e la importo da un altro server
+#####################-Creare entry in più con LDAP-#################################
+
+# Altro modo di aggiungere entry, leggendole da file /var/log/get.log
+# Formato del file: get_N1_N2_ST
+
+tail --pid=$$ -f /var/log/get.log | while IFS=_ read N1 N2 ST ; do
+
+#dn: idunico, dc=labammsis
+(
+echo "dn: idunico=$N1_$N2, dc=labammsis"
+echo "objectClass: risultato"
+echo "idunico: $N1_$N2"
+echo "nome: $1"
+if test -f $ST ; then
+    prop=$(ls -l $ST | awk '{print $3}')
+    dim=$(stat -c %s $ST)
+    echo "prop: $prop"
+    echo "dimen: $dim"
+fi
+) | ldapadd -h 10.9.9.254 -x -D "cn=admin,dc=labammsis" -w admin
+done
+
+
+# #rimpiazzo interamente la mia directory ldap e la importo da un altro server
 function sostituisci_ldap(){
         #cancello le entry che ci sono...
         ldapsearch -h 127.0.0.1 -x -s sub -b "dc=labammsis" "objectClass=gw" | grep "^dn: " | awk '{ print $2 }' | ldapdelete -D "cn=admin,dc=labammsis" -w "admin" -x
@@ -349,6 +801,38 @@ echo "ATTR VALUE: $ATTRVAL"
 ldapsearch -x -h localhost -b "user=pippo,dc=labammsis" -s base | sort | egrep "^used: |^limit: " | awk '{ print $2 }' > /tmp/ldap$$
 LIM=$(head -1 /tmp/ldap$$)
 USE=$(tail -1 /tmp/ldap$$)
+
+######################-LDAP add or modify?-############################
+
+# Ricavo il valore relativo al contatore della entry che presenta NAME come 'programma'
+RES=$(ldapsearch -x -h 10.9.9.254 -b "programma=$1,dc=labammsis" -s base | egrep "^contatore: " | awk -F ": " '{ print $2 }')
+
+
+# Incremento di N unità il contatore relativo alla propria entry LDAP:
+# ARGOMENTI: $1 Distinguished Name, $2 Nome attributo, $3 Nuovo valore, $4 host server ldap
+# RETURN: 0 se l'attributo e'stato modificato, 1 altrimenti
+
+# NB: Contatore è un attributo MAY, pertanto potrebbe non comparire: occorre fare un controllo e poi decidere se aggiungere o modificare l'attributo contatore
+
+if test -z "$RES" ; then
+    RES=$N
+    CMD=add
+else 
+    RES=$((RES+N))
+    CMD=replace
+fi
+
+################-LDAP con comando a scelta specificato come CMD-#################
+
+# nomeEntryUnivoca: entry corrispondente al servizio $NOME 
+
+
+# In base a CMD (che può essere add, replace), aggiungere un certo attributo con un certo valore (in questo caso contatore: $RES)
+
+# NB: prestare attenzione a $NOME. È un nome univoco relativo a una entry che viene solitamente richiesta.
+
+echo -e "dn: nomeEntryUnivoca=$NOME,dc=labammsis\nchangetype: modify\n$CMD: contatore\ncontatore: $RES" | ldapmodify -x -h 10.9.9.254 -D "cn=admin,dc=labammsis" -w admin
+
 
 ##########################-LDIF-########################################
 
@@ -438,6 +922,9 @@ olcObjectClasses: ( 5000.2.1.2 NAME 'request'
 ##########################-LDIF-########################################
 
 # Definizione di una entry per lo schema data (file entry.ldif)
+# Aspetto di una singola entry;
+
+# pippo, labammsis
 dn: user=pippo,dc=labammsis
 objectClass: data
 user: pippo
@@ -483,7 +970,7 @@ echo "RETURN VALUE: $?"
 # ARGOMENTI: $1 Distinguished Name, $2 Nome attributo, $3 host server ldap
 # RETURN: 0 se l'attributo e'stato rimosso, 1 altrimenti
 function delldapattr() {
-	echo -e "dn: $1\nchangetype: modify\delete: $2" | ldapmodify -x -h "$3" -D "cn=admin,dc=labammsis" -w admin
+	echo -e "dn: $1\nchangetype: modify\ndelete: $2" | ldapmodify -x -h "$3" -D "cn=admin,dc=labammsis" -w admin
 	return $?
 }
 # Esempio d’uso :
@@ -501,11 +988,72 @@ function addldapattr() {
 modldapattr "ts=555555,uname=$USER,dc=labammsis" "byte" "30" "127.0.0.1"
 echo "RETURN VALUE: $?"
 
-##########################-LOG-#########################################
+##########################-LDAP esercizio-#######################################
+# Controllo directory LDAP
+# 1 minuto di controllo
+# Come incrementare un contatore di uno
+# Impostare un timeout
 
+
+# controlla ogni 10 secondi se compaiono nella directory LDAP di Router i risultati relativi
+# alla richiesta inviata. inseriti da Server per mezzo dello script find.sh.
+# Per ogni entry trovata, deve essere stampata su stdout una riga coi valori di nome, prop e
+# dimen; la entry deve poi essere immediatamente cancellata.
+# il ciclo di controllo termina quando sono state trovate tutte le risposte attese, o se trascorre 1
+# minuto senza che siano comparse nuove risposte dopo l'ultima trattata.
+TLIMIT=$(( $(date +%s) + 60 ))
+while test $(date +%s) -lt "$TLIMIT" -a "$NUMRESPONSES" -lt "$PROG"  ; do
+    ldapsearch -h 10.1.1.254 -b "dc=labammsis" -s one "(idunico=${RAN}_*)" |
+    grep --line-buffered ^dn | 
+    while read DN VAL ; do
+    
+    # DN ="cn=ris,cn=schema,cn=config"
+    # VAL= tutto il resto
+    
+        # output di LDAPSearch:
+        # [Commenti random che non interessano a nessuno]
+        # dn: cn=ris,cn=schema,cn=config
+        # objectClass: olcSchemaConfig
+        # idunico:1234567890123456 
+        # nome:111
+        # prop:ciao
+        # dimen:10
+
+        ldapsearch -h 10.1.1.254 -b "$VAL" -s base > /tmp/details
+        echo $(grep ^nome /tmp/details | cut -c6-) $(grep ^prop /tmp/details | cut -c6-) $(grep ^dimen /tmp/details | cut -c7-)
+        ldapdelete -h 10.1.1.254 -x -D "cn=admin,dc=labammsis" -w admin "$VAL"
+        # Azzero il contatore dei secondi e ne aggiungo 60 in più
+        TLIMIT=$(( $(date +%s) + 60 ))
+        (( NUMRESPONSES++ ))
+    done
+    sleep 10 
+done
+
+#################-LDAP CONSIGLIO SALVATAGGIO DI UNA ENTRY-###############
+
+# Salvare la entry in un file temporaneo come /tmp/details
+ldapsearch -h 10.9.9.254 -b "timestamp=$MOSTRECENT,dc=labammsis, " -s base > /tmp/details
+
+#Effettuare le opportune operazioni, come ricavare un IP:
+IPCLIENT=$(grep ^ip /tmp/details | awk ": " '{ print $2 }')
+# Rimuovere il file temporaneo
+rm -f /tmp/details
+
+##########################-LOG-#########################################
+# CAPITOLO SYSLOG
+# Filtri regex per rsyslog
+# eregex = ERE (Extended Regular Expression )
+# regex = BRE (Basic Regular Espression)
+:msg, ereregex, "get(_[[:digit:]]+){2}_(/[^/ ]+)+$"     /var/log/destination.log
 #Scrivere un messaggio al logger
+
 logger -p local4.info ___$(hostname -I | egrep -o "10\.1\.1\.([1-9][0-9]?|100)")___$(whoami)___
-#formato:
+
+# Scrivere messaggi syslog a un host remoto, con etichetta local4.info:
+logger -p local4.info -n 10.9.9.1 "Questa è una prova"
+
+
+#formato di un file di log:
 #Jun  7 14:29:40 Router las: ___prova1___ciao___
 #facility: auth, ftp, news, authpriv, kern, syslog, cron, lpr, user, daemon, mail, uucp, local0 .. local7
 #priority: emerg, alert, crit, err, warning, notice, info, debug
@@ -540,31 +1088,118 @@ fi
 
 ##########################-LOG-#########################################
 
-#Come configurare rsyslog
-#/etc/rsyslog.d/esame.conf
+# Come configurare rsyslog
+# /etc/rsyslog.d/esame.conf
 # -- su C: local1.=info	@10.1.1.253
 #          local1.=info	@10.1.1.254
 # -- su R: local1.=info /var/log/reqs
-#Decommentare le seguenti linee in /etc/rsyslog.conf
+# Decommentare le seguenti linee in /etc/rsyslog.conf
 #       $ModLoad imudp
 #	$UDPServerRun 514
-#Eseguire il comando
-#sudo systemtctl restart rsyslog
+# Eseguire il comando
+# sudo systemtctl restart rsyslog
 
 ##########################-SNMP-#########################################
 
+#**************************************************
+# Lato manager (client) [/etc/snmp/snmp.conf]
+#**************************************************
+# Configurare il demone SNMP su client commentando nel file /etc/snmp/snmp.conf la riga "mibs:" per avere i nomi simbolici
+
+
+#**************************************************
+# Lato agent (server) [/etc/snmp/snmpd.conf]
+#***************************************************
+
+#----------------------------------------------------------------
+# Sezione AGENT BEHAVIOUR: vengono elencate le connessioni (socket)
+#----------------------------------------------------------------
+# La riga agentAddress  udp:127.0.0.1:161 non rende interrogabile la macchina, poiché in questo modo è interrogabile solo da se stessa.
+# Occorre infatti togliere l'indirizzo, in modo che sia accessibile da qualunque manager.
+# Pertanto nel file /etc/snmp/snmpd.conf deve comparire al posto di udp:127.0.0.1:161
+# agentAddress  udp:161
+
+#----------------------------------------------------------------
+# Sezione ACCESS CONTROL: vengono definite le password affinché
+#                         il manager possa fare operazioni Read-Only
+#                         oppure Read-Write sull'agent SNMP                         
+#----------------------------------------------------------------
+
+# public e supercom sono le due password di default
+# Tutto quello che riguarda rocommunity e rwcommunity va commentato, tranne rouser, e vanno aggiunte le seguenti due righe:
+# rocommunity public
+# rwcommunity supercom
+# In questo modo chiunque disponga della parola segreta public esegue solo lettura di tutto l'agent SNMP, chi scrive supercom esegue sia lettura che scrittura.
+
+
+#----------------------------------------------------------------
+# Sezione SYSTEM INFORMATION:                     
+#----------------------------------------------------------------
+
+# Minisezioni: sono tabelle con specifiche informazioni
+# Se sysLocation è scritto, allora si possono fare solo operazioni Read-Only, altrimenti se commentato qualsiasi oggetto su cui sia possibile scrivere del SNMP-Agent è sia writable che readable.
+
+# Minisezione process monitoring (prTable):
+
+# Utile per capire se vengono sforate delle soglie per quel che riguarda il numero di processi massimi e minimi in esecuzione. Serve per fare capire eventuali problemi di esecuzione di certi processi al manager.
+# NB se il range max-min non viene specificato il numero di processi attualmente in esecuzione sull'agent è illimitato
+
+# Aggiungere in questa sezione (segue esempio)
+# proc <nome_processo> <max_numero> <min_numero>
+
+# ESEMPI:
+#proc rsyslogd 10 1
+#proc rsyslogd
+
+# Minisezione Disk Monitoring (dskTable)
+# Mostra le partizioni a livello di memoria e quanto vengono utilizzate in percentuale.
+# Mostra se ci sono eventuali problemi di utilizzo della memoria
+
+# Minisezione System Load (laTable)
+# Massimo valore tollerabile per gli ultimi 1-5-15 minuti
+# Stesso output di uptime
+
+
+#----------------------------------------------------------------
+# Sezione EXTENDING THE AGENT: Estendo il funzionamento dell'agent
+#                              permettendo di fargli eseguire comandi
+#                              sull'agent quando viene invocato con snmpget
+#----------------------------------------------------------------
+
+# Presenta etichette simboliche
+# Aggiungere i comandi che si desiderano eseguire 
+
+# Per fare in modo che SNMP possa essere esteso per eseguire un comando di root sono necessari alcuni passaggi:
+
+# Per far eseguire a SNMP comandi di root serve editare il file di configurazione
+# /etc/snmp/snmpd.conf per includere la nuova regola (sezione arbitrary extension commands del server):
+# In caso di ss:
+extend sslist /usr/bin/sudo /bin/ss
+# In caso di iptables -vnL
+extend ipt /usr/bin/sudo /sbin/iptables -vnL
+
+# editare il file /etc/sudoers con: sudo visudo
+
+# Inserire la seguente riga nel file /etc/sudoers in modo che l'utente snmp possa eseguire il comando ss senza digitare la password (NB: All'esame sostituire ss con il comando richiesto ed eventuali opzioni)
+#snmp ALL=NOPASSWD:/bin/ss
+
+# Altro esempio di modifica di /etc/sudoers: permette di eseguire iptables -vnL
+#snmp ALL=NOPASSWD:/sbin/iptables -vnL
+
+# Infine eseguire il comando "sudo systemtctl restart snmpd"
+
+# Successivamente eseguire snmpget e snmpwalk
+
+
+########################################################################
 #snmpget esame
+# verifico se esiste una directory con nome "esame" e con nome file $2
 snmpget -v 1 -c public 10.1.1.1 'NET-SNMP-EXTEND-MIB::nsExtendOutputFull."esame"' | awk -F ' = STRING: ' '{ print $2 }'
-
-#Configurare il demone snmp su client commentando nel file /etc/snmp/snmp.conf la riga "mibs:" per avere i nomi simbolici
-#Inoltre nel file /etc/snmp/snmpd.conf svolgere le seguenti operazioni:
-#attivare ricezione udp con la riga "agentAddress udp:161" 
-#Definire una vista che includa tutto il MIB con "view all included .1"
-#Abilitare le community ad operare su quella vista con "rocommunity public default -V all" e "rwcommunity supercom default -V all"
 #Inserire inoltre la riga "extend-sh esame ps -C connect.sh -o user | grep -v USER"
-#Infine eseguire il comando "sudo systemtctl restart snmpd"
 
-#Per prova inserisci "view systemonly included .1"
+
+# Verifica via SNMP se esiste su Server il file /results/$SU
+snmpget -v 1 -c public 10.9.9.1 'NET-SNMP-EXTEND-MIB::nsExtendOutputFull."results"' | grep -q "$1" &&
 
 #Visualizza tutti gli oggetti del server 10.9.9.1
 snmpwalk -v 1 -c public 10.9.9.1 .1 | less
@@ -573,18 +1208,14 @@ snmpwalk -On -v 1 -c public 10.9.9.1 .1 | less
 # Visualizza il valore di una specifica entry del server 10.9.9.1 'SNMPv2-MIB::sysName.0'
 snmpget -v 1 -c public 10.9.9.1 'SNMPv2-MIB::sysName.0'
 
-#Per fare in modo che SNMP possa essere esteso per eseguire un comando di root sono necessari alcuni passaggi:
-#Per far eseguire a SNMP comandi di root serve editare il file di configurazione /etc/snmp/snmpd.conf per includere la nuova regola:
-# Restituisce le connessioni correntemente attive
-#extend activeconn /usr/bin/sudo /bin/ss -ntp
-# editare il file /etc/sudoers con: sudo visudo
-# Permette all'utente snmp di eseguire il comando ss senza digitare la password
-#snmp ALL=NOPASSWD:/bin/ss
+##########################################################################################
+# Esempio 1 (ss via SNMP):
+# Testa via SNMP il server S, per verificare se esiste un processo di nome N in ascolto sulla porta PS
+snmpget -v 1 -c public "$S" 'NET-SNMP-EXTEND-MIB::nsExtendOutputFull."sslist"' | egrep -q :$PS' users:\(\("'$N'.sh"' ||
+# Esempio 2 (iptables via SNMP):
+snmpget -v 1 -c public 192.168.56.203 NET-SNMP-EXTENDED-MIB::nsExtendedOutputFull.\"ipt \"
 
-# Aggiungere al file: /etc/snmp/snmpd.conf (segue esempio)
-proc <nome_processo> <max_numero> <min_numero>
-#proc rsyslogd 10 1
-#proc rsyslogd
+#########################################################################################
 #Elenco dei processi monitorati da snmp su localhost
 snmpwalk -v 1 -c public localhost "UCD-SNMP-MIB::prNames"
 # Visualizza tutti i valori di UDC - SNMP - MIB
@@ -600,7 +1231,9 @@ snmpget -v 1 -c public localhost "UCD-SNMP-MIB::prCount.$ID" | awk -F "INTEGER: 
 # Ottiene il numero di istanze di un processo registrato tramite SNMP
 # ARGOMENTI : $1 nome processo , $2 indirizzo macchina
 function getProcessCount{
+    # Ottengo l'id del processo "$1" sull'indirizzo IP "$2" e lo salvo in ID
 	ID=$(snmpwalk -v 1 -c public "$2" "UCD-SNMP-MIB::prNames" | grep "$1" | awk -F "prNames." '{ print $2 }' | awk -F " = " '{ print $1 }')
+    # Utilizzo l'id per ottenere il conteggio, verifico cosi' se il processo "$1" e' in esecuzione su "$2"
 	NUM=$(snmpget -v 1 -c public "$2" "UCD-SNMP-MIB::prCount.$ID" | awk -F "INTEGER: " '{ print $2 }')
 	echo $NUM
 }
@@ -609,7 +1242,33 @@ function getProcessCount{
 NUMERO=$(getProcessCount "rsyslogd" "10.9.9.1" )
 echo $NUMERO
 
+# ESEMPIO:
+# Cerca con SNMP il server, tra i 10, che ha il più basso carico medio negli ultimi 5 minuti
+
+function bestserver() {
+for S in "$@" ; do 
+    echo $(snmpget -v 1 -c public $S UCD-SNMP-MIB::laLoadInt.1 | awk -F 'INTEGER: ' '{ print $2 }') $S
+done | sort -nr | head -1 | awk '{ print $2 }'
+}
+
+
 ##########################-IPTABLES-#########################################
+
+# OPZIONI:
+-i eth3 # Solo pacchetti in ingresso dall'interfaccia eth3
+-o eth3 # Solo pacchetti in uscita dall'interfaccia eth3
+-s <ip>[/<netmask>] # Pacchetti che provengono dall'ip specificato
+-d <ip>[/<netmask>] # Pacchetti destinati all'ip specificato
+-p tcp # Solo pacchetti TCP
+-p udp # Solo pacchetti UDP [anche icmp]
+#Si puo' specificare il negato di un'opzione
+! -s <address>[/<netmask>]
+# Specificando il protocollo tcp o udp , si possono selezionare le porte:
+--dport <prt> # Pacchetti con porta di destinazione == <prt>
+--sport <prt> # Pacchetti con porta di partenza == <prt>
+# Nel caso del protocollo TCP, anche lo stato della connessione:
+-m state --state NEW,ESTABLISHED
+-m state --state ESTABLISHED
 
 #Le regole iptables vengono resettate allo spegnimento della macchina, se si vogliono rendere persistenti
 #è quindi importante aggiungerle al file .bashrc
@@ -617,11 +1276,23 @@ echo $NUMERO
 iptables -vnxL
 # Visualizza una singola chain
 iptables -L <chain>
+
+############################-FILTER-########################################
+
 #Policy:
 #DROP: Scarta il pacchetto
 #REJECT: Scarta il pacchetto ed invia un pacchetto ICMP per segnalare l’errore al mittente.
 #ACCEPT: Accetta il pacchetto.
+
 #chain: INPUT, OUTPUT, FORWARD
+
+# IPTABLES definisce i seguenti stati di flussi/connessioni:
+# – NEW: generato da un pacchetto appartenente a un
+#  flusso/connessione non presente nella tabella conntrack
+# – ESTABLISHED: associato a flussi/connessioni dei quali
+# sono stati già accettati pacchetti precedenti, in entrambe le
+# direzioni
+
 # Aggiungo una regola in coda ( APPEND ) alla chain FORWARD
 iptables -A FORWARD <options> -j <policy>
 # Aggiungo una regola all'inizio della coda ( INSERT ) alla chain FORWARD
@@ -636,21 +1307,127 @@ iptables -F
 #Azzera pacchetti passati nelle catena, mostrando valori attuali
 iptables -Z -vnL
 
-#options:
--i eth3 # Solo pacchetti in ingresso dall'interfaccia eth3
--o eth3 # Solo pacchetti in uscita dall'interfaccia eth3
--s <ip>[/<netmask>] # Pacchetti che provengono dall'ip specificato
--d <ip>[/<netmask>] # Pacchetti destinati all'ip specificato
--p tcp # Solo pacchetti TCP
--p udp # Solo pacchetti UDP [anche icmp]
-#Si puo' specificare il negato di un'opzione
-! -s <address>[/<netmask>]
-# Specificando il protocollo tcp o udp , si possono selezionare le porte:
---dport <prt> # Pacchetti con porta di destinazione == <prt>
---sport <prt> # Pacchetti con porta di partenza == <prt>
-# Nel caso del protocollo TCP , anche lo stato della connessione:
--m state --state NEW,ESTABLISHED
--m state --state ESTABLISHED
+# -j RETURN indica che i pacchetti non devono più passare dalla catena corrente, ma a quella successivamente indicata
+
+######################### NAT ###########################
+
+# 4 chain predefinite:
+
+# – PREROUTING: contiene le regole da usare prima
+# dell’instradamento per sostituire l’indirizzo di destinazione dei
+# pacchetti (policy = Destination NAT o DNAT)
+#
+# – POSTROUTING: contiene le regole da usare dopo
+# l’instradamento per sostituire l’indirizzo di origine dei pacchetti
+# (policy = Source NAT o SNAT)
+#
+# – OUTPUT/INPUT: contiene le regole da usare per sostituire
+# l’indirizzo di pacchetti generati/ricevuti localmente
+
+
+# La policy ACCEPT vuol dire assenza di conversione
+# La policy MASQUERADE vuol dire conversione implicita
+# nell’indirizzo IP assegnato all’interfaccia di uscita
+
+
+# Per visualizzare le regole attualmente in uso da ogni
+# chain della tabella nat:
+iptables -t nat -L [ -nv --line-num ]
+# Per visualizzare le regole attualmente in uso da una
+# chain specifica:
+iptables -t nat -L <chain>
+# Per aggiungere una regola in coda ad una chain:
+iptables -t nat -A <chain> <rule specs> -j <policy>
+
+# dove:
+# <chain> = POSTROUTING | PREROUTING | OUTPUT | ...
+# <policy> = ACCEPT | MASQUERADE |
+# SNAT --to-source <addr> |
+# DNAT --to-destination <addr>
+# <addr> = <address> | <address>:<port>
+# <rule specs> = come per la tabella filter
+
+
+##################-Esercizio IPTABLES cattivo-##########################
+
+# Il traffico TCP, relativo al servizio N, e indirizzato ad una specifica porta di RF stesso, deve venire inoltrato a S sulla porta PS.
+
+
+# Identifico la chain che caratterizza il nome del servizio offerto
+CHAINNAME=REDIR_$N
+IPN="/sbin/iptables -t nat"
+ 
+# Nel caso non vi sia nessuna ridirezione attiva per il servizio N, deve essere scelta una porta PR
+# non utilizzata (la prima disponibile >5000) e inserita una nuova regola.
+
+# Nel caso sia già attiva una ridirezione per il servizio N, deve essere sostituita la regola
+# esistente mantenendo la porta PR corrente e aggiornando la destinazione (S:PS)
+
+if ! $IPN -nL PREROUTING | grep -q $CHAINNAME ; then
+	# custom chain missing, must choose port and create it
+	PR=$($IPN -nL PREROUTING | grep REDIR_ | awk -F 'dpt:' '{ print $2}' | sort -n | tail -1)
+	if test "$PR" ; then 
+		PR=$(( $PR + 1 ))
+	else
+		PR=5001
+	fi
+	$IPN -N $CHAINNAME 
+	$IPN -I PREROUTING -p tcp -d 10.1.1.254 --dport $PR -j $CHAINNAME
+fi
+$IPN -F $CHAINNAME
+$IPN -I $CHAINNAME -j DNAT -p tcp --to-dest $S:$PS
+
+##################-IPTABLES VPN-################################
+
+
+# Ricavo IP pubblico VPN e porta
+IPPUBVPN=$(ss -ntp | grep openvpn | awk '{ print $5 }' | cut -f1 -d:)
+PORTPUBVPN=$(ss -ntp | grep openvpn | awk '{ print $5 }' | cut -f2 -d:)
+# Ricavo indirizzo privato
+IPPRIVATO=$(ip a | grep peer | awk -F 'peer ' '{ print $2 }'| cut -f1 -d/)
+
+# connessioni da macchina remota
+# la macchina remotamente raggiungibile attraverso la VPN possa connettersi con qualsiasi
+# protocollo a Router
+
+iptables -I INPUT -s $IPPRIVATO -j ACCEPT
+iptables -I OUTPUT -d $IPPRIVATO -j ACCEPT
+iptables -I INPUT -p tcp -s $IPPUBVPN --sport $PORTPUBVPN -j ACCEPT
+iptables -I OUTPUT -p tcp -d $IPPUBVPN --dport $PORTPUBVPN -j ACCEPT
+
+#################-ESERCIZIO CON VPN CONFIG DI IPTABLES-################
+
+
+# Realizzate sulla VM Router uno script /root/fw.sh che configuri il sistema in modo
+# che le connessioni TCP entranti attraverso la VPN (cioè provenienti dall’endpoint remoto
+# privato e dirette all’indirizzo privato locale di Router)
+# ◦ sulla porta 221 siano ridirette alla porta 22 di Client
+# ◦ sulla porta 229 siano ridirette alla porta 22 di Server
+# ◦ siano gestite in modo che Client e Server vedano il traffico provenire da Router
+# ed eseguitelo
+
+# Elimino qualsiasi regola di ogni chain per precauzione
+iptables -F 
+
+# Gestisco la connessione VPN: trovo l'indirizzo IP remoto
+# output di "ip a" contiene:
+# inet 10.12.0.54 peer 10.12.0.1/32 scope global tun0
+ip a | grep peer | awk '{ print $2, $4}' | cut -f1 -d/ | (
+    read LOC REM
+    # La connessione entrante attraverso la VPN, sulla porta 221 di Router viene ridiretta alla porta 22 di client
+    iptables -t nat -A PREROUTING -s $REM -p tcp -d $LOC --dport 221 -j DNAT --to-dest 10.1.1.1:22
+    iptables -t nat -A PREROUTING -s $REM -p tcp -d $LOC --dport 229 -j DNAT --to-dest 10.9.9.1:22
+    iptables -t nat -A POSTROUTING -s $REM -p tcp -d 10.1.1.1 --dport 22 -j SNAT --to-source 10.1.1.254
+    iptables -t nat -A POSTROUTING -s $REM -p tcp -d 10.9.9.1 --dport 22 -j SNAT --to-source 10.9.9.254
+    
+)
+
+# In caso di assegnazione di policy default DROP:
+
+# Imposto policy ACCEPT per traffico che coinvolge l'interfaccia di loopback
+iptables -I INPUT -i lo -j ACCEPT
+iptables -I OUTPUT -o lo -j ACCEPT
+########################################################################################################
 
 #ARGOMENTI: $1 A oppure D per aggiungere o togliere la regola, $2 indirizzo sorgente, ma da settare a seconda dei casi
 function gestisciRegola() {
@@ -711,6 +1488,13 @@ function imposta_regole(){
 	rm -f /tmp/regole$1.sh
 }
 
+# ===============================================================================================================
+# /var/log/newconn:
+
+# Apr 27 12:02:56 router kernel: [10139.999098]  INIZIO IN=eth2 OUT=eth1 MAC=08:00:27:27:a6:e6:08:00:27:24:9b:d5:08:00 SRC=10.1.1.1 DST=10.9.9.1 LEN=60 TOS=0x00 PREC=0x00 TTL=63 ID=23272 DF PROTO=TCP SPT=37668 DPT=22 WINDOW=29200 RES=0x00 SYN URGP=0
+
+# ===============================================================================================================
+
 #FORMATO DEI LOG CIRCA PER UDP, ICMP, TCP
 
 #Jun 16 15:59:03 Router kernel: [12506.141621] ___UDP___ IN=eth2 OUT= MAC=08:00:27:0b:37:1f:08:00:27:72:c7:c1:08:00 SRC=10.1.1.1 DST=10.1.1.254 LEN=82 TOS=0x00 PREC=0x00 TTL=64 ID=2939 DF PROTO=UDP SPT=51519 DPT=161 LEN=62 
@@ -726,6 +1510,7 @@ function imposta_regole(){
 #
 # notare che awk taglia sulla "]" evitando il problema dovuto al timestamp precedente,
 # che potrebbe riempire o non riempire le [] modificando la numerazione dei campi seguenti
+
 tail --pid=$$ -f /var/log/newconn | egrep --line-buffered 'INIZIO|FINE' | awk -W interactive -F ']' '{ print $2 }' | while read EVENTO IN OUT MAC SRC DST LEN TOS PREC TTL ID DF PROTO SPT DPT RESTO ; do
 	SOURCEIP=$(echo $SRC | cut -f2 -d=)
 	SOURCELASTBYTE=$(echo $SOURCEIP | cut -f4 -d.)
@@ -984,13 +1769,33 @@ iptables-restore < /tmp/output
 #Esegui ogni smt=yearly,monthly,weekly,daily,hourly,reboot
 #@smt /root/traffic.sh
 
-# configuro cron per l'esecuzione, apro l'editor predefinito con crontab -e ed inserisco la linea "*/5 * * * * /root/traffic.sh"
+
+# configuro cron per l'esecuzione come root, apro l'editor predefinito con crontab -e ed inserisco la linea "*/5 * * * * /root/traffic.sh" in modo da eseguire lo script ogni 5 minuti
+
+# Se volessi invece configurare lo script per venire eseguito ogni minuto scrivo:
+# "* * * * * /root/runas.sh"
+
+# Se voglio configuratre che un certo script venga eseguito ogni tot minuto uso crontab -e, e come standard input
+# ho la stringa con la configurazione della frequenza nel seguente formato:
+
+# */$1 * * * *
+# dove (da sinistra a destra):
+# Primo asterisco: minuto
+# Secondo asterisco: ora
+# Terzo asterisco: giorno del mese
+# Quarto asterisco: mese
+# Quinto asterisco: giorno della settimana (0: domenica, 6 sabato)
+
+# Viene eseguito ogni minuto
+echo '*/$1 * * * * /root/script.sh' | crontab -e 
 
 # configuro cron per l'esecuzione tramite script, eseguendo i seguenti comandi
-/usr/bin/crontab -l > /tmp/traffic.cron.$$
-echo "*/5 * * * * /root/traffic.sh" >> /tmp/traffic.cron.$$
-/usr/bin/crontab /tmp/traffic.cron.$$
-/bin/rm -f /tmp/traffic.cron.$$
+CRONCMD="/root/watch.sh $1 $3 $4"
+crontab -l | grep -v "$CRONCMD" > /tmp/crontab$$
+echo "*/3 * * * * $CRONCMD" >> /tmp/crontab$$
+crontab /tmp/crontab$$
+rm -f /tmp/crontab$$
+
 #edito cron altro utente
 crontab -u username -e
 #verifico chi ha invocato cron
@@ -1032,6 +1837,27 @@ tcpdump -vlnp -i eth3 'tcp[tcpflags] & tcp-fin != 0 and src net 10.9.9.0/24 and 
 #11:30:38.763502 IP 192.168.56.1.39010 > 192.168.56.202.22: Flags [F.], seq 2819887278, ack 1156069010, win 311, options [nop,nop,TS val 1218725399 ecr 2117893], length 0
 tcpdump -vlnp -i eth3 'tcp[tcpflags] & tcp-fin != 0 and src host 192.168.56.1 and dst host 192.168.56.202 and dst port 22'
 
+
+# osserva continuamente il traffico da Client a Server, e per ogni pacchetto syslog in transito  
+# - Estrae l'id univoco  
+# - Pianifica l'esecuzione di transfer.sh dopo 3 minuti 
+
+# tcpdump a differenza di iptables LOG accede al payload
+# e' sufficiente il verbose perche' sa decodificare syslog
+# in altri casi potrebbe servire -A per fare il dump in ASCII dell'intero pacchetto
+# e attenzione che di default cattura 68 bytes, se non bastano, usare -s 0
+
+# 16:38:59.883820 IP (tos 0x0, ttl 64, id 16130, offset 0, flags [DF], proto UDP (17), length 152)
+#    10.1.1.1:53926 > 10.9.9.1.514: SYSLOG, length: 124
+#	    Facility user (1), Severity notice (5)
+#	    Msg: 1 2020-06-25T16:38:59.883736+02:00 Client las - - [timeQuality tzKnown="1" isSynced="1" syncAccuracy="389500"] exec_PROGRAMMA_4324310.1.1.1_
+
+tcpdump -vnlp -i eth2 'udp port 514 and src host 10.1.1.1 and dst host 10.9.9.1' |
+grep --line-buffered exec_ | 
+awk -F _ -W interactive '{ print $3 }' | 
+while read SU; do 
+    echo "/root/transfer.sh $SU" | at now + 3 minutes 
+done
 ############################-TCPDUMP LOG-###################################################
 
 #logging in background di inizio e fine connessioni tcp tra le due net
@@ -1071,8 +1897,9 @@ tail --pid=$$ -f /var/log/newconn | while read M G H HOST PROC TS PROTO SRC DIR 
 done
 
 ############################-CHIUDI CONNESSIONI SU HOST REMOTO-###################################################
+############################- Esempio di utilizzo ss in remoto-###################################################
 
-#si collega al client e termina tutti i processi che stanno utilizzando socket di rete
+# si collega al client e termina tutti i processi che stanno utilizzando socket di rete
 
 function segnala_client(){
 	# l'output di ss può essere di questo tipo:
@@ -1122,6 +1949,49 @@ tail -f /var/log/orphans.log | grep --line-buffered " check_" | while read riga 
 	fi
 done
 
+#################################-SERVER CON PIÙ MEMORIA TRA 10 DISPONIBILI-###################################
+# Funzione che trova il server con più memoria tra 10 disponibili.
+# Range IP server: [10.9.9.1 ... 10.9.9.10]
+
+function freeserver() {
+    # creo temporaneamente una directory sicura 
+	D=$(mktemp -d)
+	cd $D || { echo unexpected error ; exit 2 ; }
+    
+    # creo un array associativo.
+    # Un array associativo funziona come una mappa
+    # Quindi si avrà, in questo caso qualcosa come:
+    
+    # 10.9.9.1      1345
+    # 10.9.9.2      1346
+    # .
+    # .
+    # .
+    # 10.9.9.10     1564
+    
+	declare -A P
+	for i in 10.9.9.{1..10} ; do 
+
+	# Trovo il server con più memoria non utilizzata (indicata dalla colonna free)
+	# Memorizzo sulla macchina locale il valore della memoria non utilizzata in un file che ha come nome
+	# l'ip del server considerato.
+	# In background (sulla macchina locale) ho il processo che associa per ciascun file il pid del processo in background più recente. Il processo in questione avrà il pid del comando ssh.
+		ssh -n $i "free | grep Mem | awk '{ print $4 }'" > $i & P[$i]=$!
+	done
+	# Dopo 10 secondi termino i processo che cerca server con maggiore memoria disponibile
+	sleep 10
+	kill ${P[*]} 2>/dev/null
+	
+	# Stampo l'ip del server con maggiore memoria disponibile
+	for i in * ; do 
+		echo -n "$i "
+		cat $i
+	done | sort -k2nr | head -1 | awk '{ print $1 }'
+	cd ..
+	# Rimuovo la directory temporanea
+	rm -rf $D
+}
+
 ############################-ATTENDO UN PING MAX 10 SECONDI-###################################################
 
 count=0
@@ -1158,15 +2028,15 @@ done
 
 # Avvia il comando in background
 gedit &
-#mandare SIGSTOP a processo (CTRL+Z) per stopparlo
-#[1]+  Fermato                 top
-#poi bg <job_id> lo si manda in background
+# Mandare SIGSTOP a processo (CTRL+Z) per stopparlo
+# [1]+  Fermato                 top
+# poi bg <job_id> lo si manda in background
 # Riporta il processo con il jobid specificato in foreground
 fg <job_id>
 # Elenca tutti i jobs con il loro stato.
 jobs
 # Esegue il comando in background e lo
-# rende immune alla chiusura della shell
+# Rende immune alla chiusura della shell
 nohup <command> &
 
 ############################-UTENTI GRUPPI-###################################################
@@ -1182,6 +2052,8 @@ adduser <nomeutente>
 addgroup <nomegruppo>
 # A questo punto possiamo creare un nuovo utente ed aggiungerlo al gruppo
 adduser --ingroup <nomegruppo> <nomeutente>
+# Creo un utente senza home directory e senza password valida, appartenente a un gruppo specificato
+adduser --ingroup --no-create-home --disabled-password <nome gruppo> <nome utente>
 #Per aggiungere un utente ad un gruppo secondario, si può utilizzare il comando usermod in questo modo:
 usermod -a -G <nomegruppo> <nomeutente>
 #Cambiare il gruppo primario di un utente
@@ -1207,9 +2079,13 @@ passwd <nomeutente>
 whoami
 # Elenca gli utenti correntemente collegati alla macchina
 who
-#Fa eseguire un comando ad un altro utente
-su -c 'cat .ssh/id_rsa.pub' - username
 
+# SU -c
+# Fa eseguire un comando ad un altro utente
+# lancio programma a nome di un altro utente
+su -c 'cat .ssh/id_rsa.pub' - username
+# genera per un utente una coppia di chiavi SSH di tipo RSA
+su -c 'ssh-keygen -t rsa -b 2048 -P ""' - "nomeutente" 
 ############################-PERMESSI-###################################################
 
 # Diamo a tutti il permesso di lettura
@@ -1230,6 +2106,10 @@ chown <username>:<group> <nomefile>
 # Cambia la proprieta di tutti i file contenuti nella directory
 # in maniera RICORSIVA
 chown -R <username>: <group> <nomedirectory>
+# Cambiare la proprietà dei file di una directory
+# in modo che appartenga a un gruppo specificato
+chgrp -R <group> <dirname>
+
 # Visualizza la umask corrente
 umask
 # Per visualizzare i permessi a default correnti in maniera
@@ -1237,7 +2117,7 @@ umask
 umask -S
 # Imposta la maschera in modo che i nuovi file abbiano permesso 775
 umask 0002
-#L’impostazione della umask è valida solo per la sessione di shell corrente. Per fare in modo che l’impostazione sia persistente, bisogna aggiungere il comando umask al file /etc/bash.bashrc
+# L’impostazione della umask è valida solo per la sessione di shell corrente. Per fare in modo che l’impostazione sia persistente, bisogna aggiungere il comando umask al file /etc/bash.bashrc
 
 ############################-ALTRO ROUTER-###################################################
 
@@ -1353,6 +2233,151 @@ checkfs.sh		hostname.sh    mdadm-raid      mountnfs.sh	      rcS		 single     ud
 checkroot-bootclean.sh	hwclock.sh     mdadm-waitidle  networking	      README		 skeleton   umountfs
 
 
+#####################################-KNOWN-PORTS-##############################################
 
+# porta ssh: 22 (TCP)
+# porta LDAP: 389 (TCP), connessione cifrata: 636 (TCP)
+# porta syslog: 514 (UDP)
+# porta SNMP: 161 (UDP)
 
+# Per maggiori informazioni sulle porte disponibili eseguire il seguente comando:
 
+sudo cat /etc/services | grep <nome-comando>
+
+#####################################-HOSTNAME-##################################################
+# Ricavare l'ip di una particolare N-esima interfaccia
+hostname -I | awk '{print $N}'
+
+######################################-NMAP-####################################################
+
+# nmap
+nmap -p 1700 router.eu.thethings.network
+
+#####################################-NETCAT-###################################################
+
+# Comando netcat (nc)
+
+# Use IPv4 only
+nc -4
+# Use IPv6
+nc -6
+# Use UDP instead of TCP
+nc -u
+# Continue listening after disconnection
+nc -k -l 
+# Skip DNS lookups
+nc -n
+# Provide verbose output
+nc -v
+# Restituisce le porte in ascolto e il loro stato
+nc -z -v <nome server o indirizzo ip>
+# Scan a single port
+nc -zv 10.9.9.1 80
+# Scan a set of individual ports
+nc -zv 10.9.9.1 80 84
+# scan a range of ports
+nc -zv 10.9.9.1 80-84
+# Avvia una shell su Linux
+nc -l -p [porta] -e /bin/bash
+# Controllo se un indirizzo IP è raggiungibile entro 3 secondi
+# dove:
+# w è il timeout
+# fare echo $? per vedere il risultato
+nc -w 3 -z indirizzoIP
+
+# Si può anche mandare un file da un server a un client.
+# Basta avere due processi, uno sul client e uno sul server.
+
+# Quello sul server può essere questo:
+nc -l 1499 > filename.out
+
+# Sul client occorre utilizzare questo comando:
+nc server.com 1499 > filename.in
+
+# Verifico se una porta di un server è in ascolto
+if nc -z 10.9.9.1 22 ; then
+    echo "Porta in ascolto"
+else
+    echo "Porta non in ascolto"
+fi
+
+#####################################-OPENVPN-#################################################
+
+# Per generare una chiave segreta per comunicare con un host remoto
+openvpn --genkey --secret nomechiavesegreta.key
+
+##################################-Random-numbers-###############################################
+
+# Come generare numeri o stringhe casuali di N caratteri
+# bash generate random alphanumeric string
+# Generare un numero compreso tra 5 e 100 (inclusi)
+shuf -i 5-100 -n 1
+
+# bash generate random 32 character alphanumeric string (upper and lowercase) and 
+# n is the number of generated alphanumeric string with 32 characters
+NEW_UUID=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+
+# bash generate random 32 character alphanumeric string (lowercase only)
+cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1
+
+# Random numbers in a range, more randomly distributed than $RANDOM which is not
+# very random in terms of distribution of numbers.
+
+# bash generate random number between 0 and 9
+cat /dev/urandom | tr -dc '0-9' | fold -w 256 | head -n 1 | head --bytes 1
+
+# bash generate random number between 0 and 99
+NUMBER=$(cat /dev/urandom | tr -dc '0-9' | fold -w 256 | head -n 1 | sed -e 's/^0*//' | head --bytes 2)
+if [ "$NUMBER" == "" ]; then
+  NUMBER=0
+fi
+
+# bash generate random number between 0 and 999
+NUMBER=$(cat /dev/urandom | tr -dc '0-9' | fold -w 256 | head -n 1 | sed -e 's/^0*//' | head --bytes 3)
+if [ "$NUMBER" == "" ]; then
+  NUMBER=0
+fi
+#############################-GENERAL UTILS-##########################################
+
+# creare un file temporaneo 
+# --tmpdir[=DIR] : permette di specificare una directory destinazione per il file temporaneo, se il parametro DIR
+# non viene specificato , usa $TMPDIR altrimenti /tmp
+# I caratteri 'XXXX' specificati verranno sostituiti in automatico con una combinazione univoca alfanumerica
+mktemp [-p directory] XXXXXX.txt
+
+# Here-document
+cat <<-EOF > $output_file
+text_line_1
+text_line_2
+text_line_3
+text_line_4
+EOF
+
+# Timer
+seconds_from_now=60
+time_limit=$(( $(date +%s) + $seconds_from_now ))
+while [ $(date +%s) -lt $time_limit -a etc]; do
+
+# Random number
+for i in {1..16}; do N=$N$(( $RANDOM % 10)); echo $N ;done
+
+# ##############################-PARAMETER EXPASION-####################################
+
+# {parameter:offset:length}
+string="01234567890abcdefgh"
+echo ${string:7}
+# 7890abcdefgh
+echo ${string:7:0}
+#
+echo ${string:7:2}
+# 78
+echo ${string:7:-2}
+# 7890abcdef
+echo ${string: -7}
+# bcdefgh
+echo ${string: -7:0}
+# 
+echo ${string: -7:2}
+# bc
+echo ${string: -7:-2}
+# bcdef 
